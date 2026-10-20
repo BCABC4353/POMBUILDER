@@ -3,7 +3,7 @@ import { Check, ClipboardCopy } from 'lucide-react';
 import { Button } from '@ds/index.js';
 import type { ClaimRow } from '@shared/ipc-types';
 
-export function BlockedBanner({ rows }: { rows: ClaimRow[] }) {
+export function BlockedBanner({ rows, disabled = false }: { rows: ClaimRow[]; disabled?: boolean }) {
   const [copied, setCopied] = useState(false);
 
   useEffect(() => {
@@ -32,7 +32,7 @@ export function BlockedBanner({ rows }: { rows: ClaimRow[] }) {
       <span className="flex-1 font-bold">
         {blocked.length} claim{blocked.length === 1 ? '' : 's'} cannot be mailed yet
       </span>
-      <Button variant="secondary" size="sm" onClick={copyList} aria-live="polite">
+      <Button variant="secondary" size="sm" onClick={copyList} disabled={disabled} aria-live="polite">
         {copied ? <Check /> : <ClipboardCopy />}
         {copied ? 'Copied' : 'Copy List'}
       </Button>

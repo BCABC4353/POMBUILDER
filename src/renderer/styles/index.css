@@ -63,6 +63,50 @@ samp {
   );
 }
 
+.pom-check {
+  appearance: none;
+  display: inline-grid;
+  place-content: center;
+  width: 0.9375rem;
+  height: 0.9375rem;
+  min-block-size: 0.9375rem;
+  min-inline-size: 0.9375rem;
+  margin: 0;
+  border: 1.5px solid var(--text-secondary);
+  border-radius: 3px;
+  background: transparent;
+  cursor: pointer;
+}
+
+.pom-check:hover {
+  border-color: var(--accent);
+}
+
+.pom-check:checked {
+  border-color: var(--accent);
+  background: var(--accent);
+}
+
+.pom-check:checked::after {
+  content: '';
+  width: 0.5rem;
+  height: 0.28rem;
+  border-left: 2px solid var(--accent-fg);
+  border-bottom: 2px solid var(--accent-fg);
+  transform: translateY(-1px) rotate(-45deg);
+}
+
+.pom-check:disabled {
+  cursor: not-allowed;
+  border-color: var(--text-subtle);
+  opacity: 0.6;
+}
+
+.pom-check:focus-visible {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: 2px;
+}
+
 .claims-row-rule {
   border-bottom: 1px solid color-mix(in srgb, var(--border-default) 42%, transparent);
 }

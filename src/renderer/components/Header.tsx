@@ -10,12 +10,12 @@ const NO_DRAG = '[-webkit-app-region:no-drag]';
 export function Header({
   upn,
   refreshing,
-  progressText,
+  refreshDisabled,
   onRefresh,
 }: {
   upn?: string;
   refreshing?: boolean;
-  progressText?: string;
+  refreshDisabled?: boolean;
   onRefresh?: () => void;
 }) {
   const { theme, toggle } = useTheme();
@@ -39,11 +39,6 @@ export function Header({
           <span className="text-fluid-nano font-black uppercase leading-none tracking-widest text-content">POM Builder</span>
         </div>
         <div className="flex min-w-0 items-center gap-fluid-sm">
-          {refreshing && progressText && (
-            <span className="max-w-[240px] truncate text-fluid-nano leading-none text-content-muted">
-              {progressText}
-            </span>
-          )}
           {upn && (
             <span
               title={upn}
@@ -57,9 +52,9 @@ export function Header({
               variant="refresh"
               size="chrome"
               onClick={onRefresh}
-              disabled={refreshing}
+              disabled={refreshing || refreshDisabled}
               aria-label="Refresh claims"
-              title="Refresh claims"
+              title={refreshDisabled ? 'Wait for the print file to finish' : 'Refresh claims'}
               className={`shrink-0 normal-case ${NO_DRAG}`}
             >
               <RefreshCw className={refreshing ? 'animate-spin' : ''} />

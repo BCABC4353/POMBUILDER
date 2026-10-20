@@ -75,6 +75,7 @@ export const useClaimsStore = create<ClaimsState>((set, get) => ({
   },
 
   refresh: async () => {
+    if (get().generating || get().refreshing) return;
     set({ refreshing: true, error: null, notice: null, progressText: 'Refreshing from RescueNet (usually under a minute)...' });
     try {
       const result = await window.electronAPI.claims.refresh();
@@ -100,8 +101,8 @@ export const useClaimsStore = create<ClaimsState>((set, get) => ({
   },
 
   generate: async () => {
-    const { checkedIds, outputDir, generating } = get();
-    if (generating) return;
+    const { checkedIds, outputDir, generating, refreshing } = get();
+    if (generating || refreshing) return;
     if (!outputDir) {
       set({ error: 'Choose an output folder' });
       return;
@@ -129,7 +130,8 @@ export const useClaimsStore = create<ClaimsState>((set, get) => ({
   },
 
   toggleCheck: (tripId: number) => {
-    const { rows, checkedIds } = get();
+    const { rows, checkedIds, refreshing } = get();
+    if (refreshing) return;
     const row = rows.find((r) => r.TripID === tripId);
     if (!row || !row.checkable) return;
     const next = new Set(checkedIds);

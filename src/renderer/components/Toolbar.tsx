@@ -5,6 +5,7 @@ interface ToolbarProps {
   checkedCount: number;
   outputDir: string | null;
   generating: boolean;
+  refreshing: boolean;
   onGenerate: () => void;
   onOpenOutput: () => void;
   onChooseOutput: () => void;
@@ -14,11 +15,12 @@ export function Toolbar({
   checkedCount,
   outputDir,
   generating,
+  refreshing,
   onGenerate,
   onOpenOutput,
   onChooseOutput,
 }: ToolbarProps) {
-  const canGenerate = checkedCount > 0 && outputDir !== null && !generating;
+  const canGenerate = checkedCount > 0 && outputDir !== null && !generating && !refreshing;
 
   return (
     <div className="flex shrink-0 flex-wrap items-center gap-2 border-b border-glass-edge bg-surface-raised px-fluid-md py-2">
@@ -30,7 +32,7 @@ export function Toolbar({
         <FolderOpen />
         Open Output Folder
       </Button>
-      <Button variant="secondary" size="md" onClick={onChooseOutput} disabled={generating}>
+      <Button variant="secondary" size="md" onClick={onChooseOutput} disabled={generating || refreshing}>
         <FolderPlus />
         Change Output Folder
       </Button>

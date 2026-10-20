@@ -13,6 +13,7 @@ import {
   measureColumnWidths,
   resolveColumnWidths,
 } from '@ds/index.js';
+import { Lock } from 'lucide-react';
 import type { ClaimRow } from '@shared/ipc-types';
 
 type Direction = 'asc' | 'desc';
@@ -44,6 +45,7 @@ interface Column {
 interface CellContext {
   tiers: Record<string, unknown>;
   checked: boolean;
+  locked: boolean;
   onToggleCheck: (tripId: number) => void;
 }
 
@@ -185,19 +187,35 @@ function makeColumns(): Column[] {
       label: 'Select',
       size: SELECT_COL_WIDTH,
       meta: { kind: 'select', fixed: true },
-      cell: (row, ctx) => (
-        <div className="flex h-full items-center justify-center">
-          <input
-            type="checkbox"
-            checked={ctx.checked}
-            disabled={!row.checkable}
-            onChange={() => ctx.onToggleCheck(row.TripID)}
-            onClick={(e) => e.stopPropagation()}
-            className="size-3.5 cursor-pointer accent-[var(--accent)] disabled:cursor-not-allowed disabled:appearance-none disabled:rounded-sm disabled:border-[1.5px] disabled:border-chip-red-fg disabled:bg-surface-base"
-            aria-label={`Select run ${row.RunNumberText}`}
-          />
-        </div>
-      ),
+      cell: (row, ctx) => {
+        if (!row.checkable) {
+          const reason = orderedGates(row).find((g) => g.blocking)?.message ?? 'This claim cannot be mailed yet';
+          return (
+            <div
+              className="flex h-full items-center justify-center text-content-subtle"
+              title={`Blocked: ${reason}`}
+              data-testid="row-locked"
+            >
+              <Lock size={13} aria-hidden="true" />
+              <input type="checkbox" checked={false} disabled readOnly className="sr-only" aria-label={`Run ${row.RunNumberText} is blocked: ${reason}`} />
+            </div>
+          );
+        }
+        return (
+          <div className="flex h-full items-center justify-center">
+            <input
+              type="checkbox"
+              checked={ctx.checked}
+              disabled={ctx.locked}
+              onChange={() => ctx.onToggleCheck(row.TripID)}
+              onClick={(e) => e.stopPropagation()}
+              className="pom-check"
+              aria-label={`Select run ${row.RunNumberText}`}
+              title={ctx.locked ? 'Wait for the current refresh or print file to finish' : undefined}
+            />
+          </div>
+        );
+      },
     },
     {
       id: 'run',
@@ -325,9 +343,10 @@ interface ClaimsTableProps {
   selectedTripId: number | null;
   onToggleCheck: (tripId: number) => void;
   onSelectRow: (tripId: number | null) => void;
+  locked?: boolean;
 }
 
-export function ClaimsTable({ rows, checkedIds, selectedTripId, onToggleCheck, onSelectRow }: ClaimsTableProps) {
+export function ClaimsTable({ rows, checkedIds, selectedTripId, onToggleCheck, onSelectRow, locked = false }: ClaimsTableProps) {
   const columns = useMemo(makeColumns, []);
   const containerRef = useRef<HTMLDivElement>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -483,7 +502,7 @@ export function ClaimsTable({ rows, checkedIds, selectedTripId, onToggleCheck, o
               : selected
                 ? 'bg-surface-overlay hover:bg-surface-overlay'
                 : 'bg-surface-base hover:bg-surface-overlay';
-            const ctx: CellContext = { tiers: cellTiers, checked: checkedIds.has(row.TripID), onToggleCheck };
+            const ctx: CellContext = { tiers: cellTiers, checked: checkedIds.has(row.TripID), locked, onToggleCheck };
             return (
               <div
                 key={row.TripID}

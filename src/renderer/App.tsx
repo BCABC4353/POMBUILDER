@@ -7,7 +7,7 @@ import { Toolbar } from './components/Toolbar';
 import { BlockedBanner } from './components/BlockedBanner';
 import { ClaimsTable } from './components/ClaimsTable';
 import { DetailPane } from './components/DetailPane';
-import { AlertTriangle, CheckCircle2, X } from 'lucide-react';
+import { AlertTriangle, CheckCircle2, Loader2, X } from 'lucide-react';
 import { Button, TableSkeleton } from '@ds/index.js';
 import { useAuthStore } from './stores/auth-store';
 import { useClaimsStore } from './stores/claims-store';
@@ -74,7 +74,7 @@ function ClaimsView({ version }: { version: string }) {
     <Header
       upn={user?.email}
       refreshing={refreshing}
-      progressText={progressText}
+      refreshDisabled={generating}
       onRefresh={() => void refresh()}
     />
   );
@@ -124,11 +124,22 @@ function ClaimsView({ version }: { version: string }) {
           </Button>
         </div>
       )}
-      <BlockedBanner rows={rows} />
+      {refreshing && (
+        <div
+          role="status"
+          data-testid="refresh-progress"
+          className="flex shrink-0 items-center gap-fluid-sm border-b border-glass-edge bg-surface-raised px-fluid-md py-1.5 text-fluid-label font-bold text-content-secondary"
+        >
+          <Loader2 className="size-[1em] shrink-0 animate-spin" aria-hidden="true" />
+          <span className="min-w-0 [overflow-wrap:anywhere]">{progressText || 'Refreshing from RescueNet (usually under a minute)...'}</span>
+        </div>
+      )}
+      <BlockedBanner rows={rows} disabled={refreshing} />
       <Toolbar
         checkedCount={checkedIds.size}
         outputDir={outputDir}
         generating={generating}
+        refreshing={refreshing}
         onGenerate={() => void generate()}
         onOpenOutput={openOutput}
         onChooseOutput={() => void chooseOutputDir()}
@@ -141,6 +152,7 @@ function ClaimsView({ version }: { version: string }) {
             selectedTripId={selectedTripId}
             onToggleCheck={toggleCheck}
             onSelectRow={selectRow}
+            locked={refreshing}
           />
         </div>
         <DetailPane row={selectedRow} />

@@ -36,73 +36,74 @@ class Gate:
 
 _G_NO_PATIENT = Gate(
     "no_patient_name", True, False,
-    "No patient name on the trip",
-    "Enter the patient name on the trip in RescueNet",
+    "No patient name on the trip.",
+    "Enter the patient name on the trip in RescueNet.",
 )
 _G_NO_DOS = Gate(
     "no_date_of_service", True, False,
-    "Date of service is missing or unreadable",
-    "Confirm the trip date in RescueNet",
+    "Date of service is missing or unreadable.",
+    "Confirm the trip date in RescueNet.",
 )
 _G_NO_COMPANY = Gate(
     "no_company", True, False,
-    "No company assigned to the trip",
-    "Assign the trip to a company in RescueNet",
+    "No company assigned to the trip.",
+    "Assign the trip to a company in RescueNet.",
 )
 _G_NO_PHYSICIAN = Gate(
     "no_ordering_physician", True, False,
-    "No ordering physician on the trip",
-    "Enter the ordering physician on the trip in RescueNet",
+    "No ordering physician on the trip.",
+    "Enter the ordering physician on the trip in RescueNet.",
 )
 _G_NO_ADDRESSEE = Gate(
     "no_addressee", True, False,
-    "No valid mailing address for this trip",
-    "Add the ordering facility on the trip; if there is none, the pickup facility needs a street address in Admin > Facilities",
+    "No mailing address: the trip has no ordering facility, and no pickup facility with an address on file.",
+    "Add the ordering facility on the trip, or choose the pickup facility from the facility list "
+    "(an address typed on the trip without a facility does not count).",
 )
 _G_STANDING = Gate(
     "standing_order", True, False,
     "Standing order (repetitive patient): a mailed request cannot cure this claim. A PCS signed by the attending physician and dated before the transport is required.",
-    "Obtain a PCS signed by the attending physician and dated before the transport",
+    "Obtain a PCS signed by the attending physician and dated before the transport.",
 )
 _G_DIALYSIS = Gate(
     "dialysis_facility", False, False,
-    "Dialysis facility detected",
-    "Confirm this trip requires a PCS",
+    "Dialysis facility detected.",
+    "Confirm this trip requires a PCS.",
 )
 _G_NO_POLICY = Gate(
     "no_policy_number", False, False,
     "No policy number on the current payor; the PCS 'Medicare #' line will print blank.",
-    "Add the policy number on the patient's current payor (Customer > Payors)",
+    "Add the policy number on the patient's current payor (Customer > Payors).",
 )
 _G_NO_PAYOR = Gate(
     "no_current_payor", True, False,
     "No current payor on the trip; save the patient's payor in the Current Payor field before mailing.",
-    "Set Current Payor on the trip's billing tab in RescueNet",
+    "Set Current Payor on the trip's billing tab in RescueNet.",
 )
 _G_NO_DOB = Gate(
     "no_dob", True, False,
     "No date of birth on the patient; add it on the patient record before mailing.",
-    "Customer record > Date of Birth",
+    "Customer record > Date of Birth.",
 )
 _G_EMERGENCY = Gate(
     "bill_as_emergency", False, False,
-    "Marked bill-as-emergency; a certification may not be required",
-    "Confirm whether this trip is truly an emergency transport",
+    "Marked bill-as-emergency; a certification may not be required.",
+    "Confirm whether this trip is truly an emergency transport.",
 )
 _G_ADDR_PICKUP = Gate(
     "addressee_is_pickup", False, False,
-    "Using pickup facility as the mailing address (no ordering facility address on file)",
-    "Add the ordering facility address in Admin > Facilities",
+    "Using pickup facility as the mailing address (no ordering facility address on file).",
+    "Add the ordering facility address in Admin > Facilities.",
 )
 _G_NOT_DIRECT_CARE = Gate(
     "pickup_not_direct_care", False, False,
-    "Pickup was not a SNF or hospital; the patient may not have been under a physician's direct care, so a certification may not be required",
-    "Confirm the pickup location and whether the patient was under a physician's direct care",
+    "Pickup was not a SNF or hospital; the patient may not have been under a physician's direct care, so a certification may not be required.",
+    "Confirm the pickup location and whether the patient was under a physician's direct care.",
 )
 _G_CANCELLED = Gate(
     "cancelled_trip", False, False,
-    "Trip is cancelled",
-    "Confirm the trip status in RescueNet before mailing",
+    "Trip is cancelled.",
+    "Confirm the trip status in RescueNet before mailing.",
 )
 
 

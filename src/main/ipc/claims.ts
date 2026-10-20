@@ -65,6 +65,7 @@ interface HelperBuildResult {
 }
 
 let _generating = false;
+let _refreshing = false;
 
 function pushProgress(text: string): void {
   const win = getMainWindow();
@@ -167,6 +168,16 @@ export function registerClaimsIpc(): void {
   ipcMain.handle('claims:load', () => loadClaims());
 
   ipcMain.handle('claims:refresh', async () => {
+    if (_generating || _refreshing) {
+      return {
+        success: false,
+        error: {
+          code: 'BUSY',
+          message: _generating ? 'Wait for the print file to finish before refreshing' : 'A refresh is already running',
+        },
+      };
+    }
+    _refreshing = true;
     try {
       pushProgress(REFRESH_PROGRESS_TEXT);
       const baseline = await trigger();
@@ -197,16 +208,18 @@ export function registerClaimsIpc(): void {
           message: err instanceof Error ? err.message : String(err),
         },
       };
+    } finally {
+      _refreshing = false;
     }
   });
 
   ipcMain.handle(
     'claims:generate',
     async (_event, opts: { tripIds: number[] }) => {
-      if (_generating) {
+      if (_generating || _refreshing) {
         return {
           success: false,
-          error: { code: 'BUSY', message: 'A print file is already being generated' },
+          error: { code: 'BUSY', message: _refreshing ? 'Wait for the refresh to finish before generating' : 'A print file is already being generated' },
         } satisfies IPCResponse<GenerateResult>;
       }
       const outputDir = getOutputDir();
