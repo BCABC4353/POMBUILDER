@@ -198,7 +198,10 @@ def build_letter(
         cursor.line(contact)
     cursor.line(supplier)
     cursor.space(16.0)
-    cursor.line(f"Enclosures: certification form ({kind}); return envelope", g.FONT_VALUE, g.SIZE_NOTE, 10.0)
+    enclosures = f"Enclosures: certification form ({kind})"
+    if not rescuenet:
+        enclosures += "; return envelope"
+    cursor.line(enclosures, g.FONT_VALUE, g.SIZE_NOTE, 10.0)
 
     pages = tuple(g.Page(tuple(ops)) for ops in cursor.pages)
     document = g.Document(name="cover_letter", title="Cover letter", pages=pages)

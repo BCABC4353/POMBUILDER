@@ -7,7 +7,7 @@ from . import forms as f
 from . import geometry as g
 from .clock import REPETITIVE_LOOKBACK_DAYS, Clock
 from .mapping import PacketData, split_address_lines
-from .overlay import SIZE_FLOOR, Sheet, SheetBuilder
+from .overlay import SIZE_FLOOR, Sheet, SheetBuilder, fit
 from .selector import DISPUTED_LABELS, PATH_REPETITIVE, Selection, tri
 
 VALIDITY_SINGLE = (
@@ -99,10 +99,12 @@ def build_certification(
     constants: dict[str, str] | None = None,
     fields: dict[str, str] | None = None,
     generated_on: date | None = None,
+    source: str = "epcr",
 ) -> Sheet:
     constants = constants or {}
     fields = fields or {}
     stamp = generated_on or date.today()
+    rescuenet = source == "rescuenet"
     builder = SheetBuilder(f.CERT_TEMPLATE, name="medical_necessity_certification")
 
     heading = _title(data.values.get("supplier_name") or constants.get("supplier_name", ""))
@@ -120,6 +122,10 @@ def build_certification(
         builder.set(key, data.values.get(key, ""))
 
     for key, label in PLACE_KEYS:
+        if rescuenet:
+            if key not in data.blanks:
+                builder.set(key, fields.get(f"{key}_form") or data.values.get(key, ""))
+            continue
         place = data.values.get(key, "")
         if not place or key in data.blanks:
             continue
@@ -137,7 +143,10 @@ def build_certification(
 
     member = data.values.get("member_id", "")
     explicit = _first(fields, MEMBER_SOURCES)
-    if explicit:
+    if rescuenet:
+        if not member:
+            builder.notes.append("No policy number on the current payor; the PCS 'Medicare #' line prints blank.")
+    elif explicit:
         builder.set("member_id", explicit)
     elif member:
         builder.notes.append(
@@ -159,7 +168,11 @@ def build_certification(
     part_a = tri(_first(fields, PART_A_SOURCES))
     builder.tri("part_a_yes", "part_a_no", part_a)
     if part_a == "Unknown":
-        builder.notes.append("Medicare Part A (PPS/DRG) coverage was not extracted; that pair of boxes is left blank.")
+        builder.notes.append(
+            "Medicare Part A (PPS/DRG) status is not recorded in RescueNet; that pair of boxes is left blank."
+            if rescuenet
+            else "Medicare Part A (PPS/DRG) coverage was not extracted; that pair of boxes is left blank."
+        )
 
     hospice = tri(_first(fields, HOSPICE_SOURCES))
     builder.tri("hospice_yes", "hospice_no", hospice)
@@ -167,11 +180,18 @@ def build_certification(
     reason = _first(fields, ("destination_reason", "transfer_reason", "transport_reason"))
     if reason:
         builder.set("not_closest_reason", reason)
-        builder.notes.append(
-            "The 'why was the patient transported to another facility' line carries the destination reason recorded on "
-            "the report. The closest-appropriate-facility Yes/No boxes are left blank: nothing in the record answers "
-            "that question."
-        )
+        if rescuenet:
+            builder.notes.append(
+                "The 'why was the patient transported to another facility' line carries the transport reason recorded "
+                "on the trip in RescueNet. The closest-appropriate-facility Yes/No boxes are left blank: nothing on the "
+                "trip answers that question."
+            )
+        else:
+            builder.notes.append(
+                "The 'why was the patient transported to another facility' line carries the destination reason "
+                "recorded on the report. The closest-appropriate-facility Yes/No boxes are left blank: nothing in the "
+                "record answers that question."
+            )
 
     validity = VALIDITY_REPETITIVE if (selection and selection.path == PATH_REPETITIVE) else VALIDITY_SINGLE
     builder.stamp(g.Text(CERT_NOTE_LEFT, CERT_NOTE_BASELINE, _clip(validity, NOTE_SIZE), g.FONT_LABEL, NOTE_SIZE))
@@ -271,9 +291,18 @@ _FIRM_SINGLE_ROW_FLOOR = 6.5
 
 @dataclass(frozen=True)
 class FirmLine:
-    recipient_name: str
-    lines: tuple[str, ...]
+    attention: str
+    facility: str
+    street: str
+    city_state_zip: str
     identifier: str
+
+
+_SENDER_KEYS = ("sender_1", "sender_2", "sender_3", "sender_4")
+
+
+def _clean(text: str) -> str:
+    return " ".join(g.ascii_safe(text).split())
 
 
 def _wrap_width(text: str, font: str, size: float, width: float) -> list[str]:
@@ -291,30 +320,82 @@ def _wrap_width(text: str, font: str, size: float, width: float) -> list[str]:
     return rows
 
 
-def _firm_rows(line: FirmLine, slot, floor: float) -> list[str]:
-    rows: list[str] = []
-    for part in line.lines:
-        text = " ".join(g.ascii_safe(part).split())
-        if not text:
-            continue
-        if g.text_width(text, slot.font, floor) <= slot.width:
-            rows.append(text)
-        else:
-            rows.extend(_wrap_width(text, slot.font, slot.size, slot.width))
-    return rows
+def _rows_for(text: str, slot, floor: float, wrap_size: float) -> list[str]:
+    if not text:
+        return []
+    if g.text_width(text, slot.font, floor) <= slot.width:
+        return [text]
+    return _wrap_width(text, slot.font, wrap_size, slot.width)
 
 
-def _firm_address(line: FirmLine, slot) -> list[str]:
+def _cap(rows: list[str], n: int) -> list[str]:
+    if n <= 0:
+        return []
+    if len(rows) <= n:
+        return rows
+    return [*rows[: n - 1], " ".join(rows[n - 1 :])]
+
+
+def _facility_rows(text: str, slot, avail: int) -> list[str]:
+    rows = _rows_for(text, slot, _FIRM_SINGLE_ROW_FLOOR, slot.size)
+    if len(rows) > avail:
+        rows = _rows_for(text, slot, SIZE_FLOOR, SIZE_FLOOR)
+    return _cap(rows, avail)
+
+
+def _firm_layout(line: FirmLine, slot) -> list[tuple[str, str]]:
     limit = f.USPS_3665_ADDRESS_ROWS
-    rows = _firm_rows(line, slot, _FIRM_SINGLE_ROW_FLOOR)
-    if len(rows) > limit:
-        rows = _firm_rows(line, slot, SIZE_FLOOR)
-    if len(rows) > limit:
-        rows = [*rows[: limit - 1], " ".join(rows[limit - 1 :])]
-    attention = " ".join(g.ascii_safe(line.recipient_name).split())
-    if attention and len(rows) < limit and g.text_width(attention, slot.font, _FIRM_SINGLE_ROW_FLOOR) <= slot.width:
-        rows = [attention, *rows]
-    return rows
+    facility = _clean(line.facility)
+    street = _clean(line.street)
+    city = _clean(line.city_state_zip)
+    city_rows = [city] if city else []
+    reserve = 1 if facility else 0
+
+    street_rows = _rows_for(street, slot, _FIRM_SINGLE_ROW_FLOOR, slot.size)
+    if len(street_rows) + len(city_rows) + reserve > limit:
+        street_rows = _rows_for(street, slot, SIZE_FLOOR, SIZE_FLOOR)
+    street_rows = _cap(street_rows, limit - len(city_rows) - reserve)
+
+    avail = limit - len(street_rows) - len(city_rows)
+    facility_rows = _facility_rows(facility, slot, avail)
+    if facility and len(street_rows) > 1 and len(_facility_rows(facility, slot, limit)) > avail:
+        compact = _cap(_rows_for(street, slot, SIZE_FLOOR, SIZE_FLOOR), 1)
+        if g.text_width(compact[0], slot.font, SIZE_FLOOR) <= slot.width:
+            street_rows = compact
+            avail = limit - len(street_rows) - len(city_rows)
+            facility_rows = _facility_rows(facility, slot, avail)
+
+    layout = [("facility name", t) for t in facility_rows]
+    layout += [("street", t) for t in street_rows]
+    layout += [("city/state/ZIP", t) for t in city_rows]
+    attention = _clean(line.attention)
+    if attention and len(layout) < limit and g.text_width(attention, slot.font, _FIRM_SINGLE_ROW_FLOOR) <= slot.width:
+        layout = [("attention", attention), *layout]
+    return layout
+
+
+def _shortened(slot, text: str) -> bool:
+    return bool(fit(slot, text)[2])
+
+
+def firm_line_notes(lines: list[FirmLine], constants: dict[str, str]) -> list[list[str]]:
+    sender_slot = f.USPS_3665_TEMPLATE.slot("sender_1")
+    sender = _address_rows(constants.get("supplier_name", ""), constants.get("supplier_address", ""), 4)
+    sender_short = any(_shortened(sender_slot, row) for row in sender)
+    slot = f.USPS_3665_TEMPLATE.slot("line1_address_1")
+    ident_slot = f.USPS_3665_TEMPLATE.slot("line1_identifier")
+    out: list[list[str]] = []
+    for line in lines:
+        fields: list[str] = []
+        for field_name, text in _firm_layout(line, slot):
+            if _shortened(slot, text) and field_name not in fields:
+                fields.append(field_name)
+        if _shortened(ident_slot, line.identifier):
+            fields.append("identifier")
+        if sender_short:
+            fields.append("sender address")
+        out.append([f"3665 line shortened: {name}" for name in fields])
+    return out
 
 
 def build_firm_sheets(
@@ -333,15 +414,14 @@ def build_firm_sheets(
     for sheet_idx in range(n_sheets):
         chunk = lines[sheet_idx * _FIRM_LINES_PER_SHEET : (sheet_idx + 1) * _FIRM_LINES_PER_SHEET]
         builder = SheetBuilder(f.USPS_3665_TEMPLATE)
-        for i, key in enumerate(("sender_1", "sender_2", "sender_3", "sender_4")):
-            if i < len(sender):
-                builder.set(key, sender[i])
+        for key, row in zip(_SENDER_KEYS, sender):
+            builder.set(key, row)
         builder.set("total_listed", str(len(chunk)))
         builder.set("page_n", str(sheet_idx + 1))
         builder.set("page_of", str(n_sheets))
         for n, line in enumerate(chunk, start=1):
             slot = f.USPS_3665_TEMPLATE.slot(f"line{n}_address_1")
-            for k, text in enumerate(_firm_address(line, slot), start=1):
+            for k, (_, text) in enumerate(_firm_layout(line, slot), start=1):
                 builder.set(f"line{n}_address_{k}", text)
             builder.set(f"line{n}_identifier", line.identifier)
         sheets.append(builder.build())

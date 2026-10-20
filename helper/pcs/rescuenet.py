@@ -11,7 +11,7 @@ from . import geometry as g
 from .clock import PATH_NONREPETITIVE, PATH_REPETITIVE, build_clock, parse_date
 from .letter import build_letter
 from .mapping import PacketData
-from .populate import FirmLine, build_certification, build_firm_sheets
+from .populate import FirmLine, build_certification, build_firm_sheets, firm_line_notes
 from .selector import STATUS_REQUIRED, Selection
 from .service import PacketBuild
 
@@ -70,7 +70,7 @@ _G_DIALYSIS = Gate(
     "Confirm this trip requires a PCS",
 )
 _G_NO_POLICY = Gate(
-    "no_policy_number", False, True,
+    "no_policy_number", False, False,
     "No policy number on the current payor; the PCS 'Medicare #' line will print blank.",
     "Add the policy number on the patient's current payor (Customer > Payors)",
 )
@@ -90,7 +90,7 @@ _G_EMERGENCY = Gate(
     "Confirm whether this trip is truly an emergency transport",
 )
 _G_ADDR_PICKUP = Gate(
-    "addressee_is_pickup", False, True,
+    "addressee_is_pickup", False, False,
     "Using pickup facility as the mailing address (no ordering facility address on file)",
     "Add the ordering facility address in Admin > Facilities",
 )
@@ -114,6 +114,10 @@ def _s(row: dict, key: str) -> str:
     if text.lower() in _NONE_SENTINELS:
         return ""
     return text
+
+
+def _a(row: dict, key: str) -> str:
+    return _s(row, key).upper()
 
 
 def _code(row: dict, key: str) -> str:
@@ -200,9 +204,7 @@ def gate(row: dict, as_of: date) -> list[Gate]:
 
 
 def constants_for(row: dict) -> dict[str, str]:
-    state_zip = " ".join(p for p in (_s(row, "CompanyState"), _s(row, "CompanyZip")) if p)
-    locality = ", ".join(p for p in (_s(row, "CompanyCity"), state_zip) if p)
-    addr = ", ".join(p for p in (_s(row, "CompanyAddr"), _s(row, "CompanyAddr2"), locality) if p)
+    addr = ", ".join(p for p in (_a(row, "CompanyAddr"), _a(row, "CompanyAddr2"), _city_state_zip(row, "Company")) if p)
     contact = ", ".join(p for p in (_s(row, "CompanyContact"), _s(row, "CompanyContactTitle")) if p)
 
     out: dict[str, str] = {
@@ -233,7 +235,7 @@ def constants_for(row: dict) -> dict[str, str]:
     return out
 
 
-_EMPTY_EXTENSION = re.compile(r"[\s,;]*(?:ext\.?|x)[\s.:#]*$", re.IGNORECASE)
+_EMPTY_EXTENSION = re.compile(r"[\s,;]*\b(?:ext\.?|x)\s*$", re.IGNORECASE)
 
 
 def _clean_phone(value: str) -> str:
@@ -247,18 +249,12 @@ def _clean_phone(value: str) -> str:
 
 def recipient_lines(row: dict) -> list[str]:
     doctor = _s(row, "OrderingDoctorName") or "Attending Physician"
-    city = _s(row, "AddresseeCity")
-    state = _s(row, "AddresseeState")
-    zip_code = _s(row, "AddresseeZip")
-    state_zip = " ".join(p for p in (state, zip_code) if p)
-    city_state_zip = ", ".join(p for p in (city, state_zip) if p)
-
     candidates = [
         f"Attn: {doctor}",
-        _s(row, "AddresseeFacility"),
-        _s(row, "AddresseeAddr"),
-        _s(row, "AddresseeAddr2"),
-        city_state_zip,
+        _a(row, "AddresseeFacility"),
+        _a(row, "AddresseeAddr"),
+        _a(row, "AddresseeAddr2"),
+        _city_state_zip(row, "Addressee"),
     ]
     return [ln for ln in candidates if ln]
 
@@ -276,21 +272,33 @@ def print_order(row: dict) -> tuple[int, int]:
 
 def firm_line(row: dict, identifier: str) -> FirmLine:
     doctor = _s(row, "OrderingDoctorName") or "Attending Physician"
-    state_zip = " ".join(p for p in (_s(row, "AddresseeState"), _s(row, "AddresseeZip")) if p)
-    city_state_zip = ", ".join(p for p in (_s(row, "AddresseeCity"), state_zip) if p)
-    street = ", ".join(p for p in (_s(row, "AddresseeAddr"), _s(row, "AddresseeAddr2")) if p)
     return FirmLine(
-        recipient_name=f"Attn: {doctor}",
-        lines=tuple(p for p in (_s(row, "AddresseeFacility"), street, city_state_zip) if p),
+        attention=f"Attn: {doctor}",
+        facility=_a(row, "AddresseeFacility"),
+        street=", ".join(p for p in (_a(row, "AddresseeAddr"), _a(row, "AddresseeAddr2")) if p),
+        city_state_zip=_city_state_zip(row, "Addressee"),
         identifier=identifier,
     )
 
 
-def _rn_place(name: str, addr: str, addr2: str, city: str, state: str, zip_code: str) -> str:
-    state_zip = " ".join(p for p in (state, zip_code) if p)
-    locality = ", ".join(p for p in (city, state_zip) if p)
-    address = ", ".join(p for p in (addr, addr2, locality) if p)
-    return " - ".join(p for p in (name, address) if p)
+def _city_state_zip(row: dict, prefix: str) -> str:
+    state_zip = " ".join(p for p in (_a(row, f"{prefix}State"), _a(row, f"{prefix}Zip")) if p)
+    return ", ".join(p for p in (_a(row, f"{prefix}City"), state_zip) if p)
+
+
+def _rn_place(row: dict, prefix: str) -> str:
+    address = ", ".join(
+        p for p in (_a(row, f"{prefix}Addr"), _a(row, f"{prefix}Addr2"), _city_state_zip(row, prefix)) if p
+    )
+    return " - ".join(p for p in (_a(row, f"{prefix}Facility"), address) if p)
+
+
+def _form_place(row: dict, prefix: str) -> str:
+    facility = _a(row, f"{prefix}Facility")
+    if facility and _i(row, f"{prefix}IsResidence") != 1:
+        return facility
+    where = ", ".join(p for p in (_a(row, f"{prefix}Addr"), _a(row, f"{prefix}City")) if p)
+    return " - ".join(p for p in ("RESIDENCE", where) if p)
 
 
 def to_build(row: dict, as_of: date, generated_on: date) -> PacketBuild:
@@ -329,25 +337,8 @@ def to_build(row: dict, as_of: date, generated_on: date) -> PacketBuild:
 
     data.set("claim_ref", _s(row, "RunNumberText"))
 
-    origin = _rn_place(
-        _s(row, "PickupFacility"),
-        _s(row, "PickupAddr"),
-        _s(row, "PickupAddr2"),
-        _s(row, "PickupCity"),
-        _s(row, "PickupState"),
-        _s(row, "PickupZip"),
-    )
-    data.set("origin", origin)
-
-    destination = _rn_place(
-        _s(row, "DropoffFacility"),
-        _s(row, "DropoffAddr"),
-        _s(row, "DropoffAddr2"),
-        _s(row, "DropoffCity"),
-        _s(row, "DropoffState"),
-        _s(row, "DropoffZip"),
-    )
-    data.set("destination", destination)
+    data.set("origin", _rn_place(row, "Pickup"))
+    data.set("destination", _rn_place(row, "Dropoff"))
 
     data.set("supplier_name", consts.get("supplier_name", ""))
     data.set("supplier_address", consts.get("supplier_address", ""))
@@ -376,9 +367,13 @@ def to_build(row: dict, as_of: date, generated_on: date) -> PacketBuild:
         generated_on=generated_on,
     )
 
-    fields: dict[str, str] = {"destination_reason": _s(row, "TransportReason")}
+    fields: dict[str, str] = {
+        "destination_reason": _s(row, "TransportReason"),
+        "origin_form": _form_place(row, "Pickup"),
+        "destination_form": _form_place(row, "Dropoff"),
+    }
 
-    cert_sheet = build_certification(data, selection, clock, consts, fields, generated_on)
+    cert_sheet = build_certification(data, selection, clock, consts, fields, generated_on, source="rescuenet")
     letter_doc = build_letter(data, selection, clock, consts, "PCS", generated_on, source="rescuenet")
 
     return PacketBuild(
@@ -406,7 +401,9 @@ def collate(
 
     flines = [firm_line(row_by_id.get(build.run_id, {}), build.run_number or "") for build in sorted_builds]
     first_row = row_by_id.get(sorted_builds[0].run_id, {}) if sorted_builds else {}
-    firm_items = build_firm_sheets(flines, constants_for(first_row), batch_id, generated_on)
+    sender_consts = constants_for(first_row)
+    firm_items = build_firm_sheets(flines, sender_consts, batch_id, generated_on)
+    firm_notes = firm_line_notes(flines, sender_consts)
 
     all_items: list = list(firm_items)
     page_counter = 1 + sum(emit.page_count(item) for item in firm_items)
@@ -437,7 +434,7 @@ def collate(
             "letter_page": letter_page,
             "hold_until": hold_until,
             "gate_codes": [gobj.code for gobj in gates_list],
-            "notes": list(build.data.notes),
+            "notes": [*build.data.notes, *firm_notes[idx]],
         })
 
     emit.merge(all_items, out_pdf)
