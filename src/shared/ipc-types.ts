@@ -25,14 +25,6 @@ export interface GateInfo {
   fix_hint: string;
 }
 
-export interface ClockInfo {
-  path: string;
-  service_date: string | null;
-  deadline: string | null;
-  days_from_service: number | null;
-  within_21: boolean;
-}
-
 export interface ClaimRow {
   TripID: number;
   RunNumber: number;
@@ -60,7 +52,6 @@ export interface ClaimRow {
   checked: boolean;
   recipient_lines: string[];
   supplier_lines: string[];
-  clock: ClockInfo | null;
 }
 
 export interface LoadResult {

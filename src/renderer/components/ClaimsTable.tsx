@@ -265,7 +265,7 @@ function makeColumns(): Column[] {
     {
       id: 'addressee',
       label: 'Addressee',
-      meta: preamble('Addressee', { cellClasses: WRAP_CELL, wraps: true, maxWidth: 340, measure: addresseeText }),
+      meta: preamble('Addressee', { cellClasses: WRAP_CELL, wraps: true, maxWidth: 440, measure: addresseeText }),
       sortValue: (r) => r.AddresseeFacility,
       cell: (row, ctx) => {
         const value = addresseeText(row);

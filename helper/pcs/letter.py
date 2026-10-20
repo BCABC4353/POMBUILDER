@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from datetime import date, timedelta
+from datetime import date
 
 from . import geometry as g
 from .clock import Clock, parse_date
@@ -141,13 +141,11 @@ def build_letter(
         )
 
     if rescuenet:
-        hold_until = _long_date(stamp + timedelta(days=21))
         cursor.paragraph(
-            "Please sign and return the enclosed form as soon as you can. Under 42 CFR 410.40(e)(3)(iv), when a signed "
-            "certification cannot be obtained, we must document our attempts to obtain one; this letter and its mailing "
-            f"record are that documentation. Under our billing policy we will hold this claim until {hold_until}, 21 "
-            "calendar days from the date of this letter. A late signature is still worth returning - it is better "
-            "evidence than our attempt alone."
+            "Please return the signed form within 21 calendar days of the date of this letter. If we do not have a "
+            "certification by then, 42 CFR 410.40(e)(3)(iv) requires us to document our attempts to obtain one, after "
+            "which we may submit the claim without it. This letter and its mailing record are that documentation. A "
+            "late signature is still worth returning - it is better evidence than our attempt alone."
         )
     elif clock is not None and selection.path == PATH_REPETITIVE:
         cursor.paragraph(

@@ -51,8 +51,8 @@ _G_NO_COMPANY = Gate(
 )
 _G_NO_PHYSICIAN = Gate(
     "no_ordering_physician", True, False,
-    "No ordering physician on the trip.",
-    "Enter the ordering physician on the trip in RescueNet.",
+    "No ordering physician on the trip; add the ordering physician on the trip's Medical tab in RescueNet.",
+    "Add the ordering physician on the trip's Medical tab in RescueNet.",
 )
 _G_NO_ADDRESSEE = Gate(
     "no_addressee", True, False,
@@ -109,6 +109,9 @@ _G_CANCELLED = Gate(
 
 
 _NONE_SENTINELS: frozenset[str] = frozenset({"<none>", "none"})
+
+BILLING_CONTACT = "Sandy Whaley, VP of Communications and Finance"
+FIRM_SHEET_ROTATION = 90
 
 
 def _s(row: dict, key: str) -> str:
@@ -207,7 +210,6 @@ def gate(row: dict, as_of: date) -> list[Gate]:
 
 def constants_for(row: dict) -> dict[str, str]:
     addr = ", ".join(p for p in (_a(row, "CompanyAddr"), _a(row, "CompanyAddr2"), _city_state_zip(row, "Company")) if p)
-    contact = ", ".join(p for p in (_s(row, "CompanyContact"), _s(row, "CompanyContactTitle")) if p)
 
     out: dict[str, str] = {
         "supplier_name": _s(row, "CompanyName"),
@@ -215,7 +217,7 @@ def constants_for(row: dict) -> dict[str, str]:
         "supplier_phone": _s(row, "CompanyPhone"),
         "supplier_fax": _s(row, "CompanyFax"),
         "supplier_npi": _s(row, "CompanyNPI"),
-        "billing_contact": contact,
+        "billing_contact": BILLING_CONTACT,
         "return_instructions": "",
     }
 
@@ -412,7 +414,8 @@ def collate(
     firm_notes = firm_line_notes(flines, sender_consts)
 
     all_items: list = list(firm_items)
-    page_counter = 1 + sum(emit.page_count(item) for item in firm_items)
+    firm_pages = sum(emit.page_count(item) for item in firm_items)
+    page_counter = 1 + firm_pages
 
     hold_until = (generated_on + timedelta(days=21)).isoformat()
 
@@ -444,4 +447,22 @@ def collate(
         })
 
     emit.merge(all_items, out_pdf)
+    _rotate_firm_pages(out_pdf, firm_pages)
     return manifest
+
+
+def _rotate_firm_pages(out_pdf: Path, count: int) -> None:
+    if count <= 0:
+        return
+    import fitz
+
+    target = Path(out_pdf)
+    staged = target.with_name(target.stem + ".rotating.pdf")
+    doc = fitz.open(str(target))
+    try:
+        for index in range(min(count, doc.page_count)):
+            doc[index].set_rotation(FIRM_SHEET_ROTATION)
+        doc.save(str(staged), garbage=3, deflate=True)
+    finally:
+        doc.close()
+    staged.replace(target)

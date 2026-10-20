@@ -10,7 +10,6 @@ import { holdWhile } from '../updater';
 import type {
   ClaimRow,
   GateInfo,
-  ClockInfo,
   LoadResult,
   GenerateResult,
   SettingsData,
@@ -49,7 +48,6 @@ interface HelperGateRow {
   checked: boolean;
   recipient_lines: string[];
   supplier_lines: string[];
-  clock: ClockInfo | null;
 }
 
 interface HelperGateResult {
@@ -137,7 +135,6 @@ async function loadClaims(): Promise<IPCResponse<LoadResult>> {
         checked: gate?.checked ?? false,
         recipient_lines: gate?.recipient_lines ?? [],
         supplier_lines: gate?.supplier_lines ?? [],
-        clock: gate?.clock ?? null,
       };
     });
 
