@@ -122,7 +122,7 @@ _G_CANCELLED = Gate(
 _NONE_SENTINELS: frozenset[str] = frozenset({"<none>", "none"})
 
 BILLING_CONTACT = "Sandy Whaley, VP of Communications and Finance"
-FIRM_SHEET_ROTATION = 90
+FIRM_SHEET_DRAW_ROTATE = -90
 
 FORM_SOLANO = "SOLANO"
 FORM_NORCAL = "NORCAL"
@@ -497,11 +497,17 @@ def _rotate_firm_pages(out_pdf: Path, count: int) -> None:
 
     target = Path(out_pdf)
     staged = target.with_name(target.stem + ".rotating.pdf")
-    doc = fitz.open(str(target))
+    src = fitz.open(str(target))
+    out = fitz.open()
     try:
-        for index in range(min(count, doc.page_count)):
-            doc[index].set_rotation(FIRM_SHEET_ROTATION)
-        doc.save(str(staged), garbage=3, deflate=True)
+        firm = min(count, src.page_count)
+        for index in range(firm):
+            page = out.new_page(width=612, height=792)
+            page.show_pdf_page(page.rect, src, index, rotate=FIRM_SHEET_DRAW_ROTATE)
+        if firm < src.page_count:
+            out.insert_pdf(src, from_page=firm, to_page=src.page_count - 1)
+        out.save(str(staged), garbage=3, deflate=True)
     finally:
-        doc.close()
+        out.close()
+        src.close()
     staged.replace(target)
