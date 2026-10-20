@@ -288,6 +288,36 @@ def build_solano_certification(
     return sheet
 
 
+def _set_stacked(builder: SheetBuilder, upper_key: str, lower_key: str, value: str) -> None:
+    text = " ".join(g.ascii_safe(value).split())
+    if not text:
+        return
+    lower = builder.template.slot(lower_key)
+    if g.text_width(text, lower.font, lower.size) <= lower.width:
+        builder.set(lower_key, text)
+        return
+    upper = builder.template.slot(upper_key)
+    size = upper.size
+    while True:
+        rows = _wrap_width(text, upper.font, size, upper.width)
+        if len(rows) <= 2 or size <= SIZE_FLOOR:
+            break
+        size = max(SIZE_FLOOR, round(size - 0.25, 2))
+    if len(rows) == 1:
+        rows = ["", rows[0]]
+    top, bottom = rows[0], " ".join(rows[1:])
+    for key, row in ((upper_key, top), (lower_key, bottom)):
+        if not row:
+            continue
+        slot = builder.template.slot(key)
+        if g.text_width(row, slot.font, size) <= slot.width:
+            builder.values[key] = row
+            builder.sizes[key] = size
+        else:
+            builder.set(key, row)
+            builder.sizes[key] = min(builder.sizes.get(key, size), size)
+
+
 def build_norcal_certification(
     data: PacketData,
     fields: dict[str, str] | None = None,
@@ -301,7 +331,7 @@ def build_norcal_certification(
     values = data.values
     builder.set("patient_name", values.get("patient_name", ""))
     builder.set("patient_dob", values.get("patient_dob", ""))
-    builder.set("pickup_facility", fields.get("origin_form") or values.get("origin", ""))
+    _set_stacked(builder, "pickup_facility_upper", "pickup_facility", fields.get("origin_form") or values.get("origin", ""))
     if service is not None:
         builder.set("requested_month", f"{service.month:02d}")
         builder.set("requested_day", f"{service.day:02d}")

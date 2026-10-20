@@ -218,9 +218,12 @@ SOLANO_TEMPLATE = Template(
 NORCAL_FILENAME = "medic_norcal_transport_justification.pdf"
 NORCAL_TERMS = "Medic Ambulance Service Medical Transport Justification Form - Northern California Operations."
 
+NORCAL_STACK_SIZE = 6.8
+
 NORCAL_SLOTS: tuple[Slot, ...] = (
     _line("patient_name", "Name", 59.0, 210.0, 148.0),
     _line("patient_dob", "Date of Birth", 271.0, 354.0, 147.5),
+    _line("pickup_facility_upper", "Pick up Facility - upper row", 95.5, 211.0, 211.6, NORCAL_STACK_SIZE),
     _line("pickup_facility", "Pick up Facility", 95.5, 211.0, 219.0),
     _line("requested_month", "Date Requested - month", 396.0, 427.0, 218.0),
     _line("requested_day", "Date Requested - day", 432.0, 462.0, 218.0),
