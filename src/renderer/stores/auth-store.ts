@@ -1,5 +1,12 @@
 import { create } from 'zustand';
 import type { UserInfo } from '../../shared/types';
+import { LOGIN_CANCELLED_MESSAGE, LOGIN_TIMEOUT_MESSAGE } from '../../shared/constants';
+
+function loginErrorMessage(code: string, fallback: string): string {
+  if (code === 'LOGIN_TIMEOUT') return LOGIN_TIMEOUT_MESSAGE;
+  if (code === 'LOGIN_CANCELLED') return LOGIN_CANCELLED_MESSAGE;
+  return fallback;
+}
 
 interface AuthState {
   user: UserInfo | null;
@@ -74,7 +81,7 @@ export const useAuthStore = create<AuthState>((set) => ({
 
     const LOGIN_TIMEOUT_MS = 130_000;
     const timeoutPromise = new Promise<never>((_, reject) =>
-      setTimeout(() => reject(new Error('Login timed out. Please try again.')), LOGIN_TIMEOUT_MS),
+      setTimeout(() => reject(new Error(LOGIN_TIMEOUT_MESSAGE)), LOGIN_TIMEOUT_MS),
     );
 
     try {
@@ -93,7 +100,7 @@ export const useAuthStore = create<AuthState>((set) => ({
         return;
       } else {
         const errorMessage = !response.success
-          ? (response.error.userMessage ?? response.error.message)
+          ? loginErrorMessage(response.error.code, response.error.userMessage ?? response.error.message)
           : (!response.data.success ? response.data.error : 'Login failed');
         set({
           isLoading: false,
@@ -114,7 +121,7 @@ export const useAuthStore = create<AuthState>((set) => ({
     const SWITCH_TIMEOUT_MS = 130_000;
     const timeoutPromise = new Promise<never>((_, reject) =>
       setTimeout(
-        () => reject(new Error('Account switch timed out. Please try again.')),
+        () => reject(new Error(LOGIN_TIMEOUT_MESSAGE)),
         SWITCH_TIMEOUT_MS,
       ),
     );
@@ -134,13 +141,9 @@ export const useAuthStore = create<AuthState>((set) => ({
       } else if (!response.success && response.error.code === 'LOGIN_IN_PROGRESS') {
         return;
       } else {
-        const cancelled =
-          !response.success && response.error.code === 'LOGIN_CANCELLED';
-        const errorMessage = cancelled
-          ? null
-          : !response.success
-            ? (response.error.userMessage ?? response.error.message)
-            : (!response.data.success ? response.data.error : 'Account switch failed');
+        const errorMessage = !response.success
+          ? loginErrorMessage(response.error.code, response.error.userMessage ?? response.error.message)
+          : (!response.data.success ? response.data.error : 'Account switch failed');
         set({
           user: null,
           isAuthenticated: false,

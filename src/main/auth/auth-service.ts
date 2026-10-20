@@ -10,7 +10,7 @@ import { randomFillSync } from 'crypto';
 import { msalConfig, loginRequest, silentRequest, azureConfigValid } from './msal-config';
 import { tokenCache as realTokenCache, CachedUserInfo } from './token-cache';
 import { UserInfo, AuthResult, IPCResponse, TokenResult } from '../../shared/types';
-import { PARTITION_NAME, TOKEN } from '../../shared/constants';
+import { PARTITION_NAME, TOKEN, LOGIN_TIMEOUT_MESSAGE, LOGIN_CANCELLED_MESSAGE } from '../../shared/constants';
 
 export interface TokenCachePort {
   getAllAccounts(): Promise<AccountInfo[]>;
@@ -52,10 +52,13 @@ export interface CookieJarPort {
   clearCache(): Promise<void>;
 }
 
+export const LOGIN_WINDOW_TIMEOUT_MS = 120_000;
+
 export type AuthWindowOpener = (
   authUrl: string,
   expectedState: string,
   onAadError: (description: string) => void,
+  onTimeout?: () => void,
 ) => Promise<{ code: string; state: string } | null>;
 
 export interface AuthServiceDeps {
@@ -79,6 +82,7 @@ class AuthService {
   private activeHomeAccountId: string | null = null;
   private activeIdLoaded = false;
   private lastAuthError: string | null = null;
+  private lastAuthTimedOut = false;
   private tokenAcquisitionInFlight: Promise<IPCResponse<TokenResult>> | null = null;
   private tokenAcquisitionAccountId: string | null = null;
   private tokenPersistMutex: Promise<void> = Promise.resolve();
@@ -292,6 +296,7 @@ class AuthService {
       await this.ensurePreLoginCookieSweep();
 
       this.lastAuthError = null;
+      this.lastAuthTimedOut = false;
 
       const previousAccountId =
         this.account?.homeAccountId ??
@@ -316,9 +321,16 @@ class AuthService {
 
       const authCodeUrl = await this.deps.msalClient.getAuthCodeUrl(authCodeUrlParams);
 
-      const authResult = await this.deps.openAuthWindow(authCodeUrl, state, (description) => {
-        this.lastAuthError = description;
-      });
+      const authResult = await this.deps.openAuthWindow(
+        authCodeUrl,
+        state,
+        (description) => {
+          this.lastAuthError = description;
+        },
+        () => {
+          this.lastAuthTimedOut = true;
+        },
+      );
 
       if (!authResult) {
         this.pendingAuthState = null;
@@ -330,9 +342,16 @@ class AuthService {
             error: { code: 'AAD_AUTH_ERROR', message },
           };
         }
+        if (this.lastAuthTimedOut) {
+          this.lastAuthTimedOut = false;
+          return {
+            success: false,
+            error: { code: 'LOGIN_TIMEOUT', message: LOGIN_TIMEOUT_MESSAGE },
+          };
+        }
         return {
           success: false,
-          error: { code: 'LOGIN_CANCELLED', message: 'Login was cancelled by user' },
+          error: { code: 'LOGIN_CANCELLED', message: LOGIN_CANCELLED_MESSAGE },
         };
       }
 
@@ -559,7 +578,7 @@ export function createAuthService(deps: AuthServiceDeps): AuthService {
 }
 
 function createElectronAuthWindowOpener(): AuthWindowOpener {
-  return (authUrl, _expectedState, onAadError) =>
+  return (authUrl, _expectedState, onAadError, onTimeout) =>
     new Promise<{ code: string; state: string } | null>((resolve) => {
       const authWindow = new BrowserWindow({
         width: 500,
@@ -584,10 +603,11 @@ function createElectronAuthWindowOpener(): AuthWindowOpener {
       };
       const timer = setTimeout(() => {
         if (!settled) {
+          onTimeout?.();
           try { authWindow.close(); } catch { }
           settle(null);
         }
-      }, 120000);
+      }, LOGIN_WINDOW_TIMEOUT_MS);
 
       const isAllowedAuthHost = (url: string): boolean => {
         try {

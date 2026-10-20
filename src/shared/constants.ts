@@ -2,6 +2,10 @@ export const APP_NAME = 'POM Builder';
 
 export const PARTITION_NAME = 'persist:pom-builder';
 
+export const LOGIN_TIMEOUT_MESSAGE = 'Sign-in timed out after 2 minutes. Please try again.';
+
+export const LOGIN_CANCELLED_MESSAGE = 'Sign-in was cancelled.';
+
 export const POWERBI_API_BASE = 'https://api.powerbi.com/v1.0/myorg';
 
 export const POM_WORKSPACE_ID = 'e04b0a24-da17-4a17-ac97-2edd7a4e1675';
