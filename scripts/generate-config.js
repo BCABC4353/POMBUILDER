@@ -60,11 +60,9 @@ const servicesDir = path.join(__dirname, '..', 'src', 'main', 'services');
 if (!fs.existsSync(servicesDir)) fs.mkdirSync(servicesDir, { recursive: true });
 
 const flowUrl = (process.env.POM_FLOW_URL || '').trim();
-const updaterToken = (process.env.POM_UPDATER_TOKEN || '').trim();
 
 const runtimeContent = `export const RUNTIME_CONFIG = {
   flowUrl: ${JSON.stringify(flowUrl)},
-  updaterToken: ${JSON.stringify(updaterToken)},
 } as const;
 `;
 

@@ -48,7 +48,6 @@ function saveWidths(key: string, widths: Widths): void {
     if (Object.keys(widths).length === 0) window.localStorage.removeItem(key);
     else window.localStorage.setItem(key, JSON.stringify(widths));
   } catch {
-    /* per-viewer convenience only */
   }
 }
 

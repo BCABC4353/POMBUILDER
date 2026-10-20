@@ -16,7 +16,6 @@ export function applyTheme(theme: Theme): void {
   try {
     localStorage.setItem(STORAGE_KEY, theme);
   } catch {
-    /* storage unavailable */
   }
   for (const l of listeners) l();
 }
