@@ -1,0 +1,59 @@
+.ds-sparkle-burst {
+  position: fixed;
+  left: 0;
+  top: 0;
+  width: 0;
+  height: 0;
+  overflow: visible;
+  pointer-events: none;
+  z-index: 60;
+}
+
+.ds-sparkle {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: var(--sb-size);
+  height: var(--sb-size);
+  margin: calc(var(--sb-size) / -2) 0 0 calc(var(--sb-size) / -2);
+  color: var(--sb-color);
+  will-change: transform, opacity;
+  animation: ds-sparkle-rain var(--sb-dur) var(--sb-delay) both;
+}
+
+.ds-sparkle svg {
+  display: block;
+  width: 100%;
+  height: 100%;
+  fill: currentColor;
+  filter: drop-shadow(0 0 2px color-mix(in srgb, currentColor 70%, transparent));
+}
+
+.ds-sparkle--dot {
+  border-radius: 9999px;
+  background: currentColor;
+  box-shadow: 0 0 4px currentColor;
+}
+
+@keyframes ds-sparkle-rain {
+  0% {
+    transform: translate(0, 0) scale(0) rotate(0deg);
+    opacity: 1;
+    animation-timing-function: cubic-bezier(0.1, 0.8, 0.3, 1);
+  }
+  38% {
+    transform: translate(var(--sb-x), var(--sb-peak)) scale(1) rotate(calc(var(--sb-r) * 0.5));
+    opacity: 1;
+    animation-timing-function: cubic-bezier(0.5, 0, 0.9, 0.6);
+  }
+  100% {
+    transform: translate(calc(var(--sb-x) * 1.35), var(--sb-fall)) scale(0.35) rotate(var(--sb-r));
+    opacity: 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ds-sparkle {
+    display: none;
+  }
+}
