@@ -1,0 +1,40 @@
+appId: com.bcabc.pombuilder
+productName: POM Builder
+copyright: "Copyright (C) 2024-2026"
+
+publish:
+  provider: github
+  owner: BCABC4353
+  repo: POMBUILDER
+
+directories:
+  output: build-output
+  buildResources: assets
+
+files:
+  - dist/**/*
+  - assets/**/*
+  - package.json
+
+extraResources:
+  - from: helper/dist/pom_helper
+    to: helper/pom_helper
+
+win:
+  target:
+    - target: nsis
+      arch:
+        - x64
+  icon: assets/icons/icon.ico
+  artifactName: POM-Builder-${version}-Windows-Setup.${ext}
+  verifyUpdateCodeSignature: false
+
+nsis:
+  oneClick: false
+  perMachine: false
+  allowToChangeInstallationDirectory: false
+  include: build/installer.nsh
+  installerIcon: assets/icons/icon.ico
+  uninstallerIcon: assets/icons/icon.ico
+  installerHeaderIcon: assets/icons/icon.ico
+  deleteAppDataOnUninstall: false

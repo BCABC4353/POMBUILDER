@@ -1,0 +1,65 @@
+name: CI
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
+  push:
+    branches: [master, main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    if: ${{ !github.event.pull_request.draft }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v6
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: '22'
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Generate config
+        run: npm run generate-config
+        env:
+          AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
+          AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
+          POM_FLOW_URL: ${{ secrets.POM_FLOW_URL }}
+
+      - name: Type check
+        run: npx tsc -p tsconfig.main.json --noEmit && npx tsc -p tsconfig.renderer.json --noEmit
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Test
+        run: npm run test:coverage
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        if: hashFiles('helper/pom_helper.py') != ''
+        with:
+          python-version: '3.12'
+
+      - name: Install helper dependencies
+        if: hashFiles('helper/pom_helper.py') != ''
+        run: pip install -r helper/requirements.txt
+
+      - name: Test Python helper
+        if: hashFiles('helper/pom_helper.py') != ''
+        run: python -m pytest helper/tests -q
+
+      - name: Audit dependencies (report-only)
+        run: npm audit --audit-level=high || true
+        continue-on-error: true

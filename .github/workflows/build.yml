@@ -1,0 +1,185 @@
+name: Build and Release
+
+on:
+  workflow_dispatch:
+    inputs:
+      bump:
+        description: 'Version bump: patch = small fix, minor = new feature, major = big change'
+        type: choice
+        options:
+          - patch
+          - minor
+          - major
+        default: patch
+
+concurrency:
+  group: build-and-release
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+
+jobs:
+  version:
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.bump.outputs.version }}
+    steps:
+      - name: Checkout main
+        uses: actions/checkout@v6
+        with:
+          ref: main
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: '22'
+      - name: Bump version, commit and tag
+        id: bump
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          new=$(npm version ${{ inputs.bump }} --no-git-tag-version)
+          echo "version=${new#v}" >> "$GITHUB_OUTPUT"
+          git add package.json package-lock.json
+          git commit -m "release ${new}"
+          git tag "${new}"
+          git push origin main
+          git push origin "${new}"
+
+  helper:
+    needs: version
+    runs-on: windows-latest
+    steps:
+      - name: Checkout the new version
+        uses: actions/checkout@v6
+        with:
+          ref: v${{ needs.version.outputs.version }}
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install helper dependencies
+        run: pip install -r helper/requirements.txt
+      - name: Build helper exe
+        run: pyinstaller helper/pom_helper.spec --distpath helper/dist --workpath helper/build
+      - name: Upload helper
+        uses: actions/upload-artifact@v7
+        with:
+          name: helper-exe
+          path: helper/dist/pom_helper
+
+  build-windows:
+    needs: [version, helper]
+    runs-on: windows-latest
+    steps:
+      - name: Checkout the new version
+        uses: actions/checkout@v6
+        with:
+          ref: v${{ needs.version.outputs.version }}
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: '22'
+          cache: 'npm'
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install dependencies
+        run: npm ci
+        env:
+          npm_config_platform: win32
+          npm_config_arch: x64
+      - name: Generate config
+        run: npm run generate-config
+        env:
+          AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
+          AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
+          POM_FLOW_URL: ${{ secrets.POM_FLOW_URL }}
+      - name: Type check
+        run: npx tsc --noEmit -p tsconfig.main.json && npx tsc --noEmit -p tsconfig.renderer.json
+      - name: Lint
+        run: npm run lint
+      - name: Download helper
+        uses: actions/download-artifact@v8
+        with:
+          name: helper-exe
+          path: helper/dist/pom_helper
+      - name: Install helper test dependencies
+        run: pip install -r helper/requirements.txt
+      - name: Test Python helper
+        run: python -m pytest helper/tests -q
+      - name: Test
+        run: npm test
+      - name: Build and package Windows
+        run: npm run package:win
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
+          AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
+          POM_FLOW_URL: ${{ secrets.POM_FLOW_URL }}
+      - name: Upload Windows installer
+        uses: actions/upload-artifact@v7
+        with:
+          name: windows-installer
+          path: |
+            build-output/*.exe
+            build-output/latest.yml
+            build-output/*.blockmap
+          retention-days: 30
+
+  release:
+    needs: [version, build-windows]
+    if: ${{ always() && needs.build-windows.result == 'success' }}
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Download Windows installer
+        uses: actions/download-artifact@v8
+        with:
+          name: windows-installer
+          path: ./artifacts
+      - name: Publish Release
+        uses: softprops/action-gh-release@v3
+        with:
+          tag_name: v${{ needs.version.outputs.version }}
+          files: ./artifacts/*
+          generate_release_notes: true
+          draft: false
+          make_latest: true
+
+  force-policy:
+    needs: [version, release]
+    if: ${{ always() && needs.release.result == 'success' }}
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout main
+        uses: actions/checkout@v6
+        with:
+          ref: main
+          token: ${{ secrets.GITHUB_TOKEN }}
+      - name: Point forceMinVersion at the new release
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          ver="${{ needs.version.outputs.version }}"
+          python3 - "$ver" <<'PY'
+          import json, sys
+          p = 'update-policy.json'
+          d = json.load(open(p))
+          d['forceMinVersion'] = sys.argv[1]
+          json.dump(d, open(p, 'w'), indent=2)
+          open(p, 'a').write('\n')
+          PY
+          git add update-policy.json
+          git commit -m "ops: force fleet to v${ver} (mandatory-update policy)"
+          for i in 1 2 3; do
+            git push origin HEAD:main && exit 0
+            git pull --rebase origin main
+          done
+          git push origin HEAD:main
