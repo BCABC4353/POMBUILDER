@@ -12,11 +12,17 @@ LEADING = 11.5
 PARAGRAPH_GAP = 8.0
 LETTER_TOP = 72.0
 
+LETTERHEAD_FILENAME = "medic_letterhead.png"
+LETTERHEAD_TOP = 118.0
+LETTERHEAD_BOTTOM = 730.0
+
 
 @dataclass
 class Cursor:
     y: float = LETTER_TOP
     pages: list[list[g.Op]] = field(default_factory=lambda: [[]])
+    top: float = LETTER_TOP
+    bottom: float = g.CONTENT_BOTTOM
 
     @property
     def ops(self) -> list[g.Op]:
@@ -29,9 +35,9 @@ class Cursor:
         self.y = max(self.y, y)
 
     def break_if_needed(self, needed: float) -> None:
-        if self.y + needed > g.CONTENT_BOTTOM:
+        if self.y + needed > self.bottom:
             self.pages.append([])
-            self.y = LETTER_TOP
+            self.y = self.top
 
     def line(self, text: str, font: str = g.FONT_VALUE, size: float = g.SIZE_BODY, leading: float = LEADING) -> None:
         self.break_if_needed(leading)
@@ -70,20 +76,23 @@ def build_letter(
     source: str = "epcr",
 ) -> g.Document:
     stamp = generated_on or date.today()
-    cursor = Cursor()
-
-    supplier = data.values.get("supplier_name") or constants.get("supplier_name", "")
-    cursor.line(supplier, g.FONT_BOLD, 11.0, 13.0)
-    for part in split_address_lines(data.values.get("supplier_address", "")):
-        cursor.line(part, g.FONT_VALUE, 8.0, 10.0)
-    phone = data.values.get("supplier_phone", "")
-    if phone:
-        cursor.line(phone, g.FONT_VALUE, 8.0, 10.0)
-    cursor.space(6.0)
-    cursor.rule(1.1)
-    cursor.space(18.0)
-
     rescuenet = source == "rescuenet"
+    supplier = data.values.get("supplier_name") or constants.get("supplier_name", "")
+
+    if rescuenet:
+        cursor = Cursor(y=LETTERHEAD_TOP, top=LETTERHEAD_TOP, bottom=LETTERHEAD_BOTTOM)
+    else:
+        cursor = Cursor()
+        cursor.line(supplier, g.FONT_BOLD, 11.0, 13.0)
+        for part in split_address_lines(data.values.get("supplier_address", "")):
+            cursor.line(part, g.FONT_VALUE, 8.0, 10.0)
+        phone = data.values.get("supplier_phone", "")
+        if phone:
+            cursor.line(phone, g.FONT_VALUE, 8.0, 10.0)
+        cursor.space(6.0)
+        cursor.rule(1.1)
+        cursor.space(18.0)
+
     cursor.line(_long_date(stamp) if rescuenet else stamp.strftime("%B %d, %Y"))
     cursor.space(12.0)
     for line in data.recipient_lines:
@@ -202,6 +211,11 @@ def build_letter(
     cursor.line(enclosures, g.FONT_VALUE, g.SIZE_NOTE, 10.0)
 
     pages = tuple(g.Page(tuple(ops)) for ops in cursor.pages)
-    document = g.Document(name="cover_letter", title="Cover letter", pages=pages)
+    document = g.Document(
+        name="cover_letter",
+        title="Cover letter",
+        pages=pages,
+        background=LETTERHEAD_FILENAME if rescuenet else "",
+    )
     g.assert_fits(document)
     return document

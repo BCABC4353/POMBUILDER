@@ -79,18 +79,6 @@ function daysSince(tripDate: string): number | null {
   return Math.round((today.getTime() - trip.getTime()) / 86_400_000);
 }
 
-function addresseeSourceLabel(src: string): string {
-  if (src === 'ORDERING_FACILITY') return 'Ordering';
-  if (src === 'PICKUP_FACILITY') return 'Pickup';
-  return 'None';
-}
-
-function addresseeSourceTone(src: string): PillTone {
-  if (src === 'ORDERING_FACILITY') return 'emerald';
-  if (src === 'PICKUP_FACILITY') return 'amber';
-  return 'red';
-}
-
 function gateLabel(code: string): string {
   return code.replace(/_/g, NBSP).toUpperCase();
 }
@@ -104,7 +92,7 @@ function tag(text: string): string {
 }
 
 function addresseeText(row: ClaimRow): string {
-  return `${row.AddresseeFacility || '—'} ${tag(addresseeSourceLabel(row.AddresseeSource).toUpperCase())}`;
+  return row.AddresseeFacility || '—';
 }
 
 function gatesText(row: ClaimRow): string {
@@ -277,14 +265,6 @@ function makeColumns(): Column[] {
               style={scale ? { fontSize: `${scale}em` } : undefined}
             >
               {row.AddresseeFacility || '—'}
-              <Pill
-                tone={addresseeSourceTone(row.AddresseeSource)}
-                intensity={row.AddresseeSource === 'ORDERING_FACILITY' || row.AddresseeSource === 'PICKUP_FACILITY' ? 'subtle' : 'solid'}
-                size="sm"
-                className="ml-1.5 inline-block whitespace-nowrap align-middle leading-[1.3]"
-              >
-                {addresseeSourceLabel(row.AddresseeSource)}
-              </Pill>
             </span>
           </div>
         );

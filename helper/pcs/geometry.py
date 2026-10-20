@@ -180,6 +180,7 @@ class Document:
     name: str
     title: str
     pages: tuple[Page, ...]
+    background: str = ""
 
 
 def observation_width() -> int:

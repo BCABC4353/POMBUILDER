@@ -9,7 +9,7 @@ foreach ($f in Get-ChildItem -Path "$EXTRACTOR\pcs" -Filter "*.py") {
     Copy-Item -Path $f.FullName -Destination "$HELPER\pcs\$($f.Name)" -Force
 }
 
-foreach ($f in Get-ChildItem -Path "$EXTRACTOR\pcs forms" -Filter "*.pdf") {
+foreach ($f in Get-ChildItem -Path "$EXTRACTOR\pcs forms" -File | Where-Object { $_.Extension -in '.pdf', '.png' }) {
     Copy-Item -Path $f.FullName -Destination "$HELPER\pcs forms\$($f.Name)" -Force
 }
 

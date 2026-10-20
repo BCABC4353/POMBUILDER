@@ -142,10 +142,21 @@ def build_doc(document: g.Document):
 
     import fitz
 
+    from . import overlay
+
     doc: Any = fitz.Document()
+    background = overlay.FORMS_DIR / document.background if document.background else None
+    if background is not None and not background.exists():
+        raise FileNotFoundError(f"letterhead missing: {background}")
     try:
+        background_xref = 0
         for page_spec in document.pages:
             page = doc.new_page(width=g.PAGE_WIDTH, height=g.PAGE_HEIGHT)
+            if background is not None:
+                if background_xref:
+                    page.insert_image(page.rect, xref=background_xref, overlay=False)
+                else:
+                    background_xref = page.insert_image(page.rect, filename=str(background), overlay=False)
             for op in page_spec.ops:
                 if isinstance(op, g.Text):
                     page.insert_text(fitz.Point(op.x, op.baseline), op.text, fontname=op.font, fontsize=op.size)
