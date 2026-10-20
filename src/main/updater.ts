@@ -96,7 +96,7 @@ export function install(): void {
   countdownTimer = null;
   log.info('[updater] forced update ready — restarting to apply.');
   try {
-    autoUpdater.quitAndInstall();
+    autoUpdater.quitAndInstall(true, true);
   } catch (err) {
     log.warn('[updater] quitAndInstall failed — will retry on the next check:', err);
     installing = false;
