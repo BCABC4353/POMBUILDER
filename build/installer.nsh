@@ -1,3 +1,5 @@
+!ifndef BUILD_UNINSTALLER
+
 !include nsDialogs.nsh
 
 Var pomOutputDir
@@ -29,3 +31,5 @@ FunctionEnd
 !macro customPageAfterChangeDir
   Page custom PomOutputDirCreate PomOutputDirLeave
 !macroend
+
+!endif

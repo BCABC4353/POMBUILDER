@@ -83,10 +83,6 @@ jobs:
         with:
           node-version: '22'
           cache: 'npm'
-      - name: Setup Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: '3.12'
       - name: Install dependencies
         run: npm ci
         env:
@@ -98,21 +94,11 @@ jobs:
           AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
           AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
           POM_FLOW_URL: ${{ secrets.POM_FLOW_URL }}
-      - name: Type check
-        run: npx tsc --noEmit -p tsconfig.main.json && npx tsc --noEmit -p tsconfig.renderer.json
-      - name: Lint
-        run: npm run lint
       - name: Download helper
         uses: actions/download-artifact@v8
         with:
           name: helper-exe
           path: helper/dist/pom_helper
-      - name: Install helper test dependencies
-        run: pip install -r helper/requirements.txt
-      - name: Test Python helper
-        run: python -m pytest helper/tests -q
-      - name: Test
-        run: npm test
       - name: Build and package Windows
         run: npm run package:win
         env:

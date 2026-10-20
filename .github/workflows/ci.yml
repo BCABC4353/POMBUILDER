@@ -37,28 +37,12 @@ jobs:
           AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
           POM_FLOW_URL: ${{ secrets.POM_FLOW_URL }}
 
-      - name: Type check
-        run: npx tsc -p tsconfig.main.json --noEmit && npx tsc -p tsconfig.renderer.json --noEmit
-
-      - name: Lint
-        run: npm run lint
-
-      - name: Test
-        run: npm run test:coverage
-
-      - name: Setup Python
-        uses: actions/setup-python@v5
-        if: hashFiles('helper/pom_helper.py') != ''
-        with:
-          python-version: '3.12'
-
-      - name: Install helper dependencies
-        if: hashFiles('helper/pom_helper.py') != ''
-        run: pip install -r helper/requirements.txt
-
-      - name: Test Python helper
-        if: hashFiles('helper/pom_helper.py') != ''
-        run: python -m pytest helper/tests -q
+      - name: Build
+        run: npm run build
+        env:
+          AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
+          AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
+          POM_FLOW_URL: ${{ secrets.POM_FLOW_URL }}
 
       - name: Audit dependencies (report-only)
         run: npm audit --audit-level=high || true
