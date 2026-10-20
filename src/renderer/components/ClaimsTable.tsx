@@ -193,7 +193,7 @@ function makeColumns(): Column[] {
             disabled={!row.checkable}
             onChange={() => ctx.onToggleCheck(row.TripID)}
             onClick={(e) => e.stopPropagation()}
-            className="size-3.5 cursor-pointer accent-[var(--accent)] disabled:cursor-not-allowed disabled:opacity-40"
+            className="size-3.5 cursor-pointer accent-[var(--accent)] disabled:cursor-not-allowed disabled:appearance-none disabled:rounded-sm disabled:border-[1.5px] disabled:border-chip-red-fg disabled:bg-surface-base"
             aria-label={`Select run ${row.RunNumberText}`}
           />
         </div>

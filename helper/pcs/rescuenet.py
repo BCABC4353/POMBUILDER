@@ -293,6 +293,11 @@ def _rn_place(row: dict, prefix: str) -> str:
     return " - ".join(p for p in (_a(row, f"{prefix}Facility"), address) if p)
 
 
+def _form_date(value: str) -> str:
+    parsed = parse_date(value)
+    return parsed.strftime("%m/%d/%Y") if parsed else value
+
+
 def _form_place(row: dict, prefix: str) -> str:
     facility = _a(row, f"{prefix}Facility")
     if facility and _i(row, f"{prefix}IsResidence") != 1:
@@ -327,12 +332,11 @@ def to_build(row: dict, as_of: date, generated_on: date) -> PacketBuild:
 
     data = PacketData()
     data.set("patient_name", _s(row, "PatientName"))
-    data.set("patient_dob", _s(row, "PatientDOB"))
+    data.set("patient_dob", _form_date(_s(row, "PatientDOB")))
     data.set("member_id", _s(row, "MemberID"))
 
     trip_date = _s(row, "TripDate")
-    parsed = parse_date(trip_date)
-    data.set("service_date", parsed.isoformat() if parsed else trip_date)
+    data.set("service_date", _form_date(trip_date))
     data.service_value = trip_date
 
     data.set("claim_ref", _s(row, "RunNumberText"))

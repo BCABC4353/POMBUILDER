@@ -2,7 +2,7 @@ import { ipcMain, dialog, shell } from 'electron';
 import * as fs from 'fs';
 import * as path from 'path';
 import { executeQuery, dataRefreshedAt } from '../pbi/client';
-import { trigger, waitForCompletion, REFRESH_PROGRESS_TEXT, REFRESH_TIMEOUT_TEXT } from '../refresh';
+import { trigger, waitForCompletion, REFRESH_PROGRESS_TEXT, REFRESH_TIMEOUT_MS, REFRESH_TIMEOUT_TEXT } from '../refresh';
 import { runHelper } from '../helper';
 import { getOutputDir, setOutputDir } from '../settings';
 import { getMainWindow } from '../window';
@@ -172,7 +172,7 @@ export function registerClaimsIpc(): void {
       const baseline = await trigger();
 
       const result = await waitForCompletion(baseline, {
-        timeoutMs: 10 * 60 * 1000,
+        timeoutMs: REFRESH_TIMEOUT_MS,
         intervalMs: 5_000,
         onTick: pushProgress,
       });
@@ -184,12 +184,6 @@ export function registerClaimsIpc(): void {
             code: 'REFRESH_TIMEOUT',
             message: REFRESH_TIMEOUT_TEXT,
           },
-        };
-      }
-      if (result === 'Failed') {
-        return {
-          success: false,
-          error: { code: 'REFRESH_FAILED', message: 'Dataset refresh failed' },
         };
       }
 

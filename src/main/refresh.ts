@@ -3,9 +3,9 @@ import { fetchWithTimeout } from './services/powerbi/http';
 import { dataRefreshedAt } from './pbi/client';
 import { RUNTIME_CONFIG } from './services/runtime-config.generated';
 
-const DEFAULT_TIMEOUT_MS = 10 * 60 * 1000;
+export const REFRESH_TIMEOUT_MS = 20 * 60 * 1000;
 export const REFRESH_PROGRESS_TEXT = 'Refreshing from RescueNet (usually under a minute)...';
-export const REFRESH_TIMEOUT_TEXT = 'Refresh did not finish in 10 minutes. Try again; if it keeps failing, contact support.';
+export const REFRESH_TIMEOUT_TEXT = 'Refresh did not finish in 20 minutes. Try again; if it keeps failing, contact support.';
 const DEFAULT_INTERVAL_MS = 5 * 1000;
 
 export async function trigger(): Promise<string | null> {
@@ -31,8 +31,8 @@ export async function waitForCompletion(
     intervalMs?: number;
     onTick?: (s: string) => void;
   },
-): Promise<'Completed' | 'Failed' | 'Timeout'> {
-  const timeoutMs = opts?.timeoutMs ?? DEFAULT_TIMEOUT_MS;
+): Promise<'Completed' | 'Timeout'> {
+  const timeoutMs = opts?.timeoutMs ?? REFRESH_TIMEOUT_MS;
   const intervalMs = opts?.intervalMs ?? DEFAULT_INTERVAL_MS;
   const onTick = opts?.onTick;
   const deadline = Date.now() + timeoutMs;
