@@ -11,6 +11,8 @@ interface ClaimsState {
   lastRefresh: string | null;
   progressText: string;
   outputDir: string | null;
+  generating: boolean;
+  notice: string | null;
 
   load: () => Promise<void>;
   refresh: () => Promise<void>;
@@ -21,6 +23,7 @@ interface ClaimsState {
   chooseOutputDir: () => Promise<void>;
   loadSettings: () => Promise<void>;
   dismissError: () => void;
+  dismissNotice: () => void;
 }
 
 function initCheckedIds(rows: ClaimRow[]): Set<number> {
@@ -43,6 +46,8 @@ export const useClaimsStore = create<ClaimsState>((set, get) => ({
   lastRefresh: null,
   progressText: '',
   outputDir: null,
+  generating: false,
+  notice: null,
 
   loadSettings: async () => {
     const settings = await window.electronAPI.settings.get();
@@ -70,7 +75,7 @@ export const useClaimsStore = create<ClaimsState>((set, get) => ({
   },
 
   refresh: async () => {
-    set({ refreshing: true, error: null, progressText: 'Starting...' });
+    set({ refreshing: true, error: null, notice: null, progressText: 'Refreshing from RescueNet (usually under a minute)...' });
     try {
       const result = await window.electronAPI.claims.refresh();
       if (result.success) {
@@ -95,23 +100,31 @@ export const useClaimsStore = create<ClaimsState>((set, get) => ({
   },
 
   generate: async () => {
-    const { checkedIds, outputDir } = get();
+    const { checkedIds, outputDir, generating } = get();
+    if (generating) return;
     if (!outputDir) {
       set({ error: 'Choose an output folder' });
       return;
     }
     if (checkedIds.size === 0) return;
 
-    set({ error: null });
+    set({ error: null, notice: null, generating: true });
     try {
       const result = await window.electronAPI.claims.generate({
         tripIds: Array.from(checkedIds),
       });
-      if (!result.success) {
-        set({ error: result.error.message });
+      if (result.success) {
+        const { claims, pages, out_dir } = result.data;
+        const folder = out_dir ?? outputDir;
+        set({
+          generating: false,
+          notice: `Print file created: ${claims} ${claims === 1 ? 'claim' : 'claims'}, ${pages} ${pages === 1 ? 'page' : 'pages'} in ${folder}`,
+        });
+      } else {
+        set({ generating: false, error: result.error.message });
       }
     } catch (err) {
-      set({ error: err instanceof Error ? err.message : String(err) });
+      set({ generating: false, error: err instanceof Error ? err.message : String(err) });
     }
   },
 
@@ -141,6 +154,10 @@ export const useClaimsStore = create<ClaimsState>((set, get) => ({
 
   dismissError: () => {
     set({ error: null });
+  },
+
+  dismissNotice: () => {
+    set({ notice: null });
   },
 
   selectRow: (tripId: number | null) => {

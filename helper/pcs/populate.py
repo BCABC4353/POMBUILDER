@@ -7,7 +7,7 @@ from . import forms as f
 from . import geometry as g
 from .clock import REPETITIVE_LOOKBACK_DAYS, Clock
 from .mapping import PacketData, split_address_lines
-from .overlay import Sheet, SheetBuilder
+from .overlay import SIZE_FLOOR, Sheet, SheetBuilder
 from .selector import DISPUTED_LABELS, PATH_REPETITIVE, Selection, tri
 
 VALIDITY_SINGLE = (
@@ -266,6 +266,7 @@ def build_certificate_of_mailing(
 
 
 _FIRM_LINES_PER_SHEET = 6
+_FIRM_SINGLE_ROW_FLOOR = 6.5
 
 
 @dataclass(frozen=True)
@@ -273,6 +274,47 @@ class FirmLine:
     recipient_name: str
     lines: tuple[str, ...]
     identifier: str
+
+
+def _wrap_width(text: str, font: str, size: float, width: float) -> list[str]:
+    rows: list[str] = []
+    current = ""
+    for word in text.split():
+        candidate = f"{current} {word}" if current else word
+        if current and g.text_width(candidate, font, size) > width:
+            rows.append(current)
+            current = word
+        else:
+            current = candidate
+    if current:
+        rows.append(current)
+    return rows
+
+
+def _firm_rows(line: FirmLine, slot, floor: float) -> list[str]:
+    rows: list[str] = []
+    for part in line.lines:
+        text = " ".join(g.ascii_safe(part).split())
+        if not text:
+            continue
+        if g.text_width(text, slot.font, floor) <= slot.width:
+            rows.append(text)
+        else:
+            rows.extend(_wrap_width(text, slot.font, slot.size, slot.width))
+    return rows
+
+
+def _firm_address(line: FirmLine, slot) -> list[str]:
+    limit = f.USPS_3665_ADDRESS_ROWS
+    rows = _firm_rows(line, slot, _FIRM_SINGLE_ROW_FLOOR)
+    if len(rows) > limit:
+        rows = _firm_rows(line, slot, SIZE_FLOOR)
+    if len(rows) > limit:
+        rows = [*rows[: limit - 1], " ".join(rows[limit - 1 :])]
+    attention = " ".join(g.ascii_safe(line.recipient_name).split())
+    if attention and len(rows) < limit and g.text_width(attention, slot.font, _FIRM_SINGLE_ROW_FLOOR) <= slot.width:
+        rows = [attention, *rows]
+    return rows
 
 
 def build_firm_sheets(
@@ -298,9 +340,9 @@ def build_firm_sheets(
         builder.set("page_n", str(sheet_idx + 1))
         builder.set("page_of", str(n_sheets))
         for n, line in enumerate(chunk, start=1):
-            parts = [line.recipient_name] + list(line.lines)
-            address_text = ", ".join(p for p in parts if p)
-            builder.set(f"line{n}_address", address_text)
+            slot = f.USPS_3665_TEMPLATE.slot(f"line{n}_address_1")
+            for k, text in enumerate(_firm_address(line, slot), start=1):
+                builder.set(f"line{n}_address_{k}", text)
             builder.set(f"line{n}_identifier", line.identifier)
         sheets.append(builder.build())
     return sheets

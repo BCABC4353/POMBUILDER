@@ -4,7 +4,7 @@ from dataclasses import dataclass, field
 from datetime import date, timedelta
 
 from . import geometry as g
-from .clock import Clock
+from .clock import Clock, parse_date
 from .mapping import PacketData, split_address_lines
 from .selector import DISPUTED_LABELS, PATH_REPETITIVE, Selection
 
@@ -51,6 +51,15 @@ class Cursor:
         self.y += 6.0
 
 
+def _long_date(value: date) -> str:
+    return f"{value.strftime('%B')} {value.day}, {value.year}"
+
+
+def _prose_date(value: str) -> str:
+    parsed = parse_date(value)
+    return _long_date(parsed) if parsed else value
+
+
 def build_letter(
     data: PacketData,
     selection: Selection,
@@ -74,7 +83,8 @@ def build_letter(
     cursor.rule(1.1)
     cursor.space(18.0)
 
-    cursor.line(stamp.strftime("%B %d, %Y"))
+    rescuenet = source == "rescuenet"
+    cursor.line(_long_date(stamp) if rescuenet else stamp.strftime("%B %d, %Y"))
     cursor.space(12.0)
     for line in data.recipient_lines:
         cursor.line(line)
@@ -83,6 +93,9 @@ def build_letter(
     patient = data.values.get("patient_name", "")
     dob = data.values.get("patient_dob", "")
     service = data.values.get("service_date", "")
+    if rescuenet:
+        dob = _prose_date(dob)
+        service = _prose_date(service)
     cursor.line(f"Re:  Ambulance certification statement - {patient}", g.FONT_VALUE_BOLD)
     cursor.line(f"     Date of birth {dob}    Date of service {service}", g.FONT_VALUE_BOLD)
     cursor.space(14.0)
@@ -98,10 +111,10 @@ def build_letter(
         "means of transportation were contraindicated, and 42 CFR 410.40(e) requires us to obtain a certification "
         "statement saying so. The enclosed form is that certification."
     )
-    if source == "rescuenet":
+    if rescuenet:
         cursor.paragraph(
-            "Section 5 of the form is blank, and it is blank on purpose. We have filled in the facts we already hold - "
-            "who the patient is, and where and when we transported. The certification itself is yours to write. "
+            "Sections II and III of the form are blank, and they are blank on purpose. We have filled in the facts we "
+            "already hold - who the patient is, and where and when we transported. The certification itself is yours to write. "
             "Please do not sign a statement you cannot support from your own knowledge of this patient, "
             "and please do not treat anything we have printed as the certification."
         )
@@ -127,8 +140,8 @@ def build_letter(
             "the signature line."
         )
 
-    if source == "rescuenet":
-        hold_until = (stamp + timedelta(days=21)).strftime("%B %d, %Y")
+    if rescuenet:
+        hold_until = _long_date(stamp + timedelta(days=21))
         cursor.paragraph(
             "Please sign and return the enclosed form as soon as you can. Under 42 CFR 410.40(e)(3)(iv), when a signed "
             "certification cannot be obtained, we must document our attempts to obtain one; this letter and its mailing "

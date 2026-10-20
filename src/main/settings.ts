@@ -31,6 +31,8 @@ function tryReadRegistry(): string | null {
 function seedOnce(): void {
   if (seeded) return;
   seeded = true;
+  const raw = settingsStore as unknown as Store<Record<string, unknown>>;
+  if (raw.has('firmSheets')) raw.delete('firmSheets');
   if (settingsStore.get('outputDir')) return;
   const regVal = tryReadRegistry();
   if (regVal) {

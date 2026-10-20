@@ -67,9 +67,14 @@ const DESC_FIRST_SORT_FIELDS = new Set(['date', 'days']);
 const DEFAULT_SORTS: SortEntry[] = [{ field: 'days', direction: 'desc' }];
 
 function daysSince(tripDate: string): number | null {
-  const d = new Date(tripDate);
-  if (isNaN(d.getTime())) return null;
-  return Math.floor((Date.now() - d.getTime()) / 86_400_000);
+  const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(tripDate) ?? /^(\d{1,2})\/(\d{1,2})\/(\d{4})/.exec(tripDate);
+  if (!m) return null;
+  const [y, mo, d] = m[0].includes('/') ? [Number(m[3]), Number(m[1]), Number(m[2])] : [Number(m[1]), Number(m[2]), Number(m[3])];
+  const trip = new Date(y, mo - 1, d);
+  if (isNaN(trip.getTime())) return null;
+  const now = new Date();
+  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  return Math.round((today.getTime() - trip.getTime()) / 86_400_000);
 }
 
 function addresseeSourceLabel(src: string): string {
@@ -121,9 +126,9 @@ function BlankDash() {
   );
 }
 
-function Tag({ tone, children }: { tone: PillTone; children: ReactNode }) {
+function Tag({ tone, solid, children }: { tone: PillTone; solid?: boolean; children: ReactNode }) {
   return (
-    <Pill tone={tone} size="sm" className="shrink-0 whitespace-nowrap leading-[1.3]">
+    <Pill tone={tone} intensity={solid ? 'solid' : 'subtle'} size="sm" className="shrink-0 whitespace-nowrap leading-[1.3]">
       {children}
     </Pill>
   );
@@ -211,14 +216,14 @@ function makeColumns(): Column[] {
     {
       id: 'patient',
       label: 'Patient',
-      meta: preamble('Patient', { fixed: true, cellClasses: WRAP_CELL, unclamped: true, measure: (r) => r.PatientName || '-' }),
+      meta: preamble('Patient', { cellClasses: WRAP_CELL, unclamped: true, measure: (r) => r.PatientName || '-' }),
       sortValue: (r) => r.PatientName,
       cell: (row, ctx) => wrapCell('patient', row.PatientName, ctx.tiers, row.PatientName),
     },
     {
       id: 'status',
       label: 'Status',
-      meta: preamble('Status', { fixed: true, cellClasses: WRAP_CELL, unclamped: true, measure: (r) => r.TripStatus || '-' }),
+      meta: preamble('Status', { cellClasses: WRAP_CELL, unclamped: true, measure: (r) => r.TripStatus || '-' }),
       sortValue: (r) => r.TripStatus,
       cell: (row, ctx) => wrapCell('status', row.TripStatus, ctx.tiers, row.TripStatus),
     },
@@ -256,6 +261,7 @@ function makeColumns(): Column[] {
               {row.AddresseeFacility || '—'}
               <Pill
                 tone={addresseeSourceTone(row.AddresseeSource)}
+                intensity={row.AddresseeSource === 'ORDERING_FACILITY' || row.AddresseeSource === 'PICKUP_FACILITY' ? 'subtle' : 'solid'}
                 size="sm"
                 className="ml-1.5 inline-block whitespace-nowrap align-middle leading-[1.3]"
               >
@@ -269,7 +275,7 @@ function makeColumns(): Column[] {
     {
       id: 'gates',
       label: 'Gates',
-      meta: preamble('Gates', { cellClasses: PILL_MEASURE, wraps: true, maxWidth: 300, measure: gatesText }),
+      meta: preamble('Gates', { fixed: true, cellClasses: PILL_MEASURE, wraps: true, maxWidth: 300, measure: gatesText }),
       sortValue: (r) => r.gates.filter((g) => g.blocking).length * 100 + r.gates.length,
       cell: (row) => (
         <div className="flex h-full min-w-0 flex-wrap content-center items-center justify-center gap-1 px-1">
@@ -277,7 +283,7 @@ function makeColumns(): Column[] {
             <Tag tone="emerald">Clean</Tag>
           ) : (
             orderedGates(row).map((g) => (
-              <Tag key={g.code} tone={g.blocking ? 'red' : 'amber'}>
+              <Tag key={g.code} tone={g.blocking ? 'red' : 'amber'} solid={g.blocking}>
                 {gateLabel(g.code)}
               </Tag>
             ))
@@ -291,6 +297,14 @@ function makeColumns(): Column[] {
 function compareValues(a: SortValue, b: SortValue): number {
   if (typeof a === 'number' && typeof b === 'number') return a - b;
   return String(a ?? '').localeCompare(String(b ?? ''), 'en', { numeric: true, sensitivity: 'base' });
+}
+
+function singleSort(sorts: SortEntry[], field: string): SortEntry[] {
+  const firstDirection: Direction = DESC_FIRST_SORT_FIELDS.has(field) ? 'desc' : 'asc';
+  const only = sorts.length === 1 && sorts[0]?.field === field ? sorts[0] : null;
+  if (!only) return [{ field, direction: firstDirection }];
+  if (only.direction === firstDirection) return [{ field, direction: firstDirection === 'asc' ? 'desc' : 'asc' }];
+  return [];
 }
 
 function nextSorts(sorts: SortEntry[], field: string): SortEntry[] {
@@ -394,7 +408,10 @@ export function ClaimsTable({ rows, checkedIds, selectedTripId, onToggleCheck, o
     return buildGridTemplate(specs, { edgePx: TABLE_EDGE_PX }) as { gridTemplateColumns: string; gridMinWidth: number };
   }, [columns, columnSizing]);
 
-  const toggleSort = useCallback((field: string) => setSorts((s) => nextSorts(s, field)), []);
+  const toggleSort = useCallback(
+    (field: string, additive: boolean) => setSorts((s) => (additive ? nextSorts(s, field) : singleSort(s, field))),
+    [],
+  );
 
   return (
     <div
@@ -429,7 +446,8 @@ export function ClaimsTable({ rows, checkedIds, selectedTripId, onToggleCheck, o
                 >
                   <Button
                     variant="bare"
-                    onClick={() => toggleSort(c.id)}
+                    onClick={(e: { shiftKey: boolean }) => toggleSort(c.id, e.shiftKey)}
+                    title="Click to sort; Shift+click to add a secondary sort"
                     className={`flex h-full w-full items-center justify-center px-1 ${HEADER_FOCUS_RING} ${HEADER_TEXT} ${HEADER_TONE_IDLE}`}
                   >
                     <span className="truncate">
@@ -474,7 +492,9 @@ export function ClaimsTable({ rows, checkedIds, selectedTripId, onToggleCheck, o
                 aria-selected={selected || undefined}
                 data-blocked={!row.checkable || undefined}
                 onClick={() => onSelectRow(selected ? null : row.TripID)}
-                className={`grid cursor-pointer items-stretch transition-colors ${bg}`}
+                className={`relative grid cursor-pointer items-stretch transition-colors ${bg} ${
+                  selected ? 'z-10 outline outline-2 -outline-offset-2 outline-accent' : ''
+                }`}
                 style={{
                   gridTemplateColumns,
                   minWidth: gridMinWidth,

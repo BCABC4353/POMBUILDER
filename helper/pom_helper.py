@@ -85,6 +85,8 @@ def cmd_build(args: argparse.Namespace) -> None:
     rows = _load_rows(args.rows)
     as_of = _parse_as_of(args.as_of)
     select_ids = set(int(x.strip()) for x in args.select.split(",") if x.strip())
+    if not select_ids:
+        _fail("No claims selected")
     out_dir = Path(args.out_dir)
 
     if not out_dir.exists() or not out_dir.is_dir():

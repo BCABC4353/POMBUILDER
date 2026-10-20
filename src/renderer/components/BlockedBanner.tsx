@@ -1,8 +1,17 @@
-import { ClipboardCopy } from 'lucide-react';
+import { useEffect, useState } from 'react';
+import { Check, ClipboardCopy } from 'lucide-react';
 import { Button } from '@ds/index.js';
 import type { ClaimRow } from '@shared/ipc-types';
 
 export function BlockedBanner({ rows }: { rows: ClaimRow[] }) {
+  const [copied, setCopied] = useState(false);
+
+  useEffect(() => {
+    if (!copied) return undefined;
+    const timer = window.setTimeout(() => setCopied(false), 2000);
+    return () => window.clearTimeout(timer);
+  }, [copied]);
+
   const blocked = rows.filter((r) => !r.checkable);
   if (blocked.length === 0) return null;
 
@@ -15,7 +24,7 @@ export function BlockedBanner({ rows }: { rows: ClaimRow[] }) {
         }
       }
     }
-    void navigator.clipboard.writeText(lines.join('\n'));
+    void navigator.clipboard.writeText(lines.join('\n')).then(() => setCopied(true));
   };
 
   return (
@@ -23,9 +32,9 @@ export function BlockedBanner({ rows }: { rows: ClaimRow[] }) {
       <span className="flex-1 font-bold">
         {blocked.length} claim{blocked.length === 1 ? '' : 's'} cannot be mailed yet
       </span>
-      <Button variant="secondary" size="sm" onClick={copyList}>
-        <ClipboardCopy />
-        Copy list
+      <Button variant="secondary" size="sm" onClick={copyList} aria-live="polite">
+        {copied ? <Check /> : <ClipboardCopy />}
+        {copied ? 'Copied' : 'Copy List'}
       </Button>
     </div>
   );

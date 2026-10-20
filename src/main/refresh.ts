@@ -3,16 +3,18 @@ import { fetchWithTimeout } from './services/powerbi/http';
 import { dataRefreshedAt } from './pbi/client';
 import { RUNTIME_CONFIG } from './services/runtime-config.generated';
 
-const DEFAULT_TIMEOUT_MS = 20 * 60 * 1000;
+const DEFAULT_TIMEOUT_MS = 10 * 60 * 1000;
+export const REFRESH_PROGRESS_TEXT = 'Refreshing from RescueNet (usually under a minute)...';
+export const REFRESH_TIMEOUT_TEXT = 'Refresh did not finish in 10 minutes. Try again; if it keeps failing, contact support.';
 const DEFAULT_INTERVAL_MS = 5 * 1000;
 
 export async function trigger(): Promise<string | null> {
-  const baseline = await dataRefreshedAt();
-
   const url = RUNTIME_CONFIG.flowUrl || (app.isPackaged ? '' : (process.env.POM_FLOW_URL ?? '').trim());
   if (!url) {
-    throw new Error('POM_FLOW_URL is not configured');
+    throw new Error('Refresh is not available in this build.');
   }
+
+  const baseline = await dataRefreshedAt();
 
   const resp = await fetchWithTimeout(url, { method: 'POST' }, 30_000);
   if (!resp.ok) {
@@ -36,7 +38,7 @@ export async function waitForCompletion(
   const deadline = Date.now() + timeoutMs;
   const baselineMs = baseline !== null ? Date.parse(baseline) : null;
 
-  if (onTick) onTick('Dataflow refreshing...');
+  if (onTick) onTick(REFRESH_PROGRESS_TEXT);
 
   while (Date.now() < deadline) {
     await new Promise<void>((r) => setTimeout(r, intervalMs));
@@ -59,6 +61,6 @@ export async function waitForCompletion(
     }
   }
 
-  if (onTick) onTick('Refresh did not finish in 20 minutes; try again or contact support');
+  if (onTick) onTick(REFRESH_TIMEOUT_TEXT);
   return 'Timeout';
 }

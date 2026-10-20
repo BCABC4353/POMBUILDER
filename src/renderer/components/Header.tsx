@@ -8,13 +8,11 @@ import { useTitleBarOverlay } from '../lib/titlebar';
 const NO_DRAG = '[-webkit-app-region:no-drag]';
 
 export function Header({
-  version,
   upn,
   refreshing,
   progressText,
   onRefresh,
 }: {
-  version?: string;
   upn?: string;
   refreshing?: boolean;
   progressText?: string;
@@ -39,9 +37,6 @@ export function Header({
           </div>
           <div aria-hidden="true" className="h-5 w-px shrink-0 bg-line" />
           <span className="text-fluid-nano font-black uppercase leading-none tracking-widest text-content">POM Builder</span>
-          {version && (
-            <span className="text-fluid-nano font-mono leading-none text-content-muted tabular-nums">v{version}</span>
-          )}
         </div>
         <div className="flex min-w-0 items-center gap-fluid-sm">
           {refreshing && progressText && (
@@ -65,7 +60,7 @@ export function Header({
               disabled={refreshing}
               aria-label="Refresh claims"
               title="Refresh claims"
-              className={`shrink-0 ${NO_DRAG}`}
+              className={`shrink-0 normal-case ${NO_DRAG}`}
             >
               <RefreshCw className={refreshing ? 'animate-spin' : ''} />
               {refreshing ? 'Refreshing...' : 'Refresh'}

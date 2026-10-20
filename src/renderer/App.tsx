@@ -7,7 +7,7 @@ import { Toolbar } from './components/Toolbar';
 import { BlockedBanner } from './components/BlockedBanner';
 import { ClaimsTable } from './components/ClaimsTable';
 import { DetailPane } from './components/DetailPane';
-import { AlertTriangle, X } from 'lucide-react';
+import { AlertTriangle, CheckCircle2, X } from 'lucide-react';
 import { Button, TableSkeleton } from '@ds/index.js';
 import { useAuthStore } from './stores/auth-store';
 import { useClaimsStore } from './stores/claims-store';
@@ -34,6 +34,8 @@ function ClaimsView({ version }: { version: string }) {
     refreshing,
     progressText,
     outputDir,
+    generating,
+    notice,
     load,
     refresh,
     generate,
@@ -42,6 +44,7 @@ function ClaimsView({ version }: { version: string }) {
     chooseOutputDir,
     loadSettings,
     dismissError,
+    dismissNotice,
   } = useClaimsStore();
 
   const { user } = useAuthStore();
@@ -69,7 +72,6 @@ function ClaimsView({ version }: { version: string }) {
 
   const header = (
     <Header
-      version={version}
       upn={user?.email}
       refreshing={refreshing}
       progressText={progressText}
@@ -99,13 +101,25 @@ function ClaimsView({ version }: { version: string }) {
       {error && (
         <div
           role="alert"
-          className="flex shrink-0 items-center gap-fluid-sm border-b border-chip-amber-bd bg-chip-amber-bg px-fluid-md py-2 text-fluid-body text-chip-amber-fg"
+          data-testid="error-banner"
+          className="flex shrink-0 items-center gap-fluid-sm border-b border-chip-red-bd bg-chip-red-bg px-fluid-md py-2 text-fluid-body text-status-danger"
         >
           <AlertTriangle className="size-[1em] shrink-0" aria-hidden="true" />
-          <span className="min-w-0 flex-1 truncate font-bold" title={error}>
-            {error}
-          </span>
+          <span className="min-w-0 flex-1 font-bold [overflow-wrap:anywhere]">{error}</span>
           <Button variant="ghost" size="sm" onClick={dismissError} aria-label="Dismiss message" title="Dismiss">
+            <X />
+          </Button>
+        </div>
+      )}
+      {notice && (
+        <div
+          role="status"
+          data-testid="notice-banner"
+          className="flex shrink-0 items-center gap-fluid-sm border-b border-chip-emerald-bd bg-chip-emerald-bg px-fluid-md py-2 text-fluid-body text-chip-emerald-fg"
+        >
+          <CheckCircle2 className="size-[1em] shrink-0" aria-hidden="true" />
+          <span className="min-w-0 flex-1 font-bold [overflow-wrap:anywhere]">{notice}</span>
+          <Button variant="ghost" size="sm" onClick={dismissNotice} aria-label="Dismiss message" title="Dismiss">
             <X />
           </Button>
         </div>
@@ -114,7 +128,7 @@ function ClaimsView({ version }: { version: string }) {
       <Toolbar
         checkedCount={checkedIds.size}
         outputDir={outputDir}
-        generating={false}
+        generating={generating}
         onGenerate={() => void generate()}
         onOpenOutput={openOutput}
         onChooseOutput={() => void chooseOutputDir()}

@@ -75,6 +75,7 @@ export interface GenerateResult {
   gates_csv: string;
   pages: number;
   claims: number;
+  out_dir?: string;
 }
 
 export interface SettingsData {

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import re
 from dataclasses import dataclass
 from datetime import date, timedelta
 from pathlib import Path
@@ -226,7 +227,22 @@ def constants_for(row: dict) -> dict[str, str]:
         except (OSError, json.JSONDecodeError):
             pass
 
+    for key in ("supplier_phone", "supplier_fax"):
+        out[key] = _clean_phone(out[key])
+
     return out
+
+
+_EMPTY_EXTENSION = re.compile(r"[\s,;]*(?:ext\.?|x)[\s.:#]*$", re.IGNORECASE)
+
+
+def _clean_phone(value: str) -> str:
+    text = value.strip()
+    while True:
+        trimmed = _EMPTY_EXTENSION.sub("", text).rstrip(" .,;:-#")
+        if trimmed == text:
+            return text
+        text = trimmed
 
 
 def recipient_lines(row: dict) -> list[str]:
@@ -245,6 +261,29 @@ def recipient_lines(row: dict) -> list[str]:
         city_state_zip,
     ]
     return [ln for ln in candidates if ln]
+
+
+_RUN_YEAR = re.compile(r"^\s*(\d{2,4})-")
+
+
+def print_order(row: dict) -> tuple[int, int]:
+    hit = _RUN_YEAR.match(str(row.get("RunNumberText") or ""))
+    year = int(hit.group(1)) if hit else 0
+    if 0 < year < 100:
+        year += 2000
+    return year, _i(row, "RunNumber")
+
+
+def firm_line(row: dict, identifier: str) -> FirmLine:
+    doctor = _s(row, "OrderingDoctorName") or "Attending Physician"
+    state_zip = " ".join(p for p in (_s(row, "AddresseeState"), _s(row, "AddresseeZip")) if p)
+    city_state_zip = ", ".join(p for p in (_s(row, "AddresseeCity"), state_zip) if p)
+    street = ", ".join(p for p in (_s(row, "AddresseeAddr"), _s(row, "AddresseeAddr2")) if p)
+    return FirmLine(
+        recipient_name=f"Attn: {doctor}",
+        lines=tuple(p for p in (_s(row, "AddresseeFacility"), street, city_state_zip) if p),
+        identifier=identifier,
+    )
 
 
 def _rn_place(name: str, addr: str, addr2: str, city: str, state: str, zip_code: str) -> str:
@@ -363,21 +402,9 @@ def collate(
     generated_on: date,
 ) -> list[dict]:
     row_by_id: dict[int, dict] = {_i(r, "TripID"): r for r in rows}
-    sorted_builds = sorted(
-        builds,
-        key=lambda b: _i(row_by_id.get(b.run_id, {}), "RunNumber"),
-    )
+    sorted_builds = sorted(builds, key=lambda b: print_order(row_by_id.get(b.run_id, {})))
 
-    flines = []
-    for build in sorted_builds:
-        rlines = recipient_lines(row_by_id.get(build.run_id, {}))
-        flines.append(
-            FirmLine(
-                recipient_name=rlines[0] if rlines else "",
-                lines=tuple(rlines[1:]),
-                identifier=build.run_number or "",
-            )
-        )
+    flines = [firm_line(row_by_id.get(build.run_id, {}), build.run_number or "") for build in sorted_builds]
     first_row = row_by_id.get(sorted_builds[0].run_id, {}) if sorted_builds else {}
     firm_items = build_firm_sheets(flines, constants_for(first_row), batch_id, generated_on)
 

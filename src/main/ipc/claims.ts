@@ -2,7 +2,7 @@ import { ipcMain, dialog, shell } from 'electron';
 import * as fs from 'fs';
 import * as path from 'path';
 import { executeQuery, dataRefreshedAt } from '../pbi/client';
-import { trigger, waitForCompletion } from '../refresh';
+import { trigger, waitForCompletion, REFRESH_PROGRESS_TEXT, REFRESH_TIMEOUT_TEXT } from '../refresh';
 import { runHelper } from '../helper';
 import { getOutputDir, setOutputDir } from '../settings';
 import { getMainWindow } from '../window';
@@ -168,12 +168,11 @@ export function registerClaimsIpc(): void {
 
   ipcMain.handle('claims:refresh', async () => {
     try {
-      pushProgress('Requesting refresh...');
+      pushProgress(REFRESH_PROGRESS_TEXT);
       const baseline = await trigger();
-      pushProgress('Dataflow refreshing...');
 
       const result = await waitForCompletion(baseline, {
-        timeoutMs: 20 * 60 * 1000,
+        timeoutMs: 10 * 60 * 1000,
         intervalMs: 5_000,
         onTick: pushProgress,
       });
@@ -183,7 +182,7 @@ export function registerClaimsIpc(): void {
           success: false,
           error: {
             code: 'REFRESH_TIMEOUT',
-            message: 'Refresh did not finish in 20 minutes; try again or contact support',
+            message: REFRESH_TIMEOUT_TEXT,
           },
         };
       }
@@ -210,6 +209,12 @@ export function registerClaimsIpc(): void {
   ipcMain.handle(
     'claims:generate',
     async (_event, opts: { tripIds: number[] }) => {
+      if (_generating) {
+        return {
+          success: false,
+          error: { code: 'BUSY', message: 'A print file is already being generated' },
+        } satisfies IPCResponse<GenerateResult>;
+      }
       const outputDir = getOutputDir();
       if (!outputDir) {
         return {
@@ -228,21 +233,6 @@ export function registerClaimsIpc(): void {
         } satisfies IPCResponse<GenerateResult>;
       }
 
-      try {
-        fs.mkdirSync(outDir);
-      } catch (err) {
-        const code = (err as NodeJS.ErrnoException).code;
-        if (code !== 'EEXIST') {
-          return {
-            success: false,
-            error: {
-              code: 'MKDIR_ERROR',
-              message: err instanceof Error ? err.message : String(err),
-            },
-          } satisfies IPCResponse<GenerateResult>;
-        }
-      }
-
       const batchId = `pom-${today}-${nowStr()}`;
       const selectArg = opts.tripIds.join(',');
 
@@ -258,26 +248,41 @@ export function registerClaimsIpc(): void {
         today,
       ];
 
-      let pbiRows: PbiRawRow[] = [];
-      try {
-        pbiRows = await executeQuery<PbiRawRow>("EVALUATE 'POM REQUIRED'");
-      } catch (err) {
-        return {
-          success: false,
-          error: {
-            code: 'QUERY_ERROR',
-            message: err instanceof Error ? err.message : String(err),
-          },
-        } satisfies IPCResponse<GenerateResult>;
-      }
-
       _generating = true;
       try {
+        let pbiRows: PbiRawRow[] = [];
+        try {
+          pbiRows = await executeQuery<PbiRawRow>("EVALUATE 'POM REQUIRED'");
+        } catch (err) {
+          return {
+            success: false,
+            error: {
+              code: 'QUERY_ERROR',
+              message: err instanceof Error ? err.message : String(err),
+            },
+          } satisfies IPCResponse<GenerateResult>;
+        }
+
+        try {
+          fs.mkdirSync(outDir);
+        } catch (err) {
+          const code = (err as NodeJS.ErrnoException).code;
+          if (code !== 'EEXIST') {
+            return {
+              success: false,
+              error: {
+                code: 'MKDIR_ERROR',
+                message: err instanceof Error ? err.message : String(err),
+              },
+            } satisfies IPCResponse<GenerateResult>;
+          }
+        }
+
         const buildResult = (await runHelper(pbiRows, buildArgs)) as HelperBuildResult;
         void shell.openPath(outDir);
         return {
           success: true,
-          data: buildResult as GenerateResult,
+          data: { ...buildResult, out_dir: outDir } as GenerateResult,
         } satisfies IPCResponse<GenerateResult>;
       } catch (err) {
         return {
@@ -304,6 +309,7 @@ export function registerClaimsIpc(): void {
     const win = getMainWindow();
     const openOpts = {
       title: 'Choose output folder',
+      defaultPath: getOutputDir() ?? undefined,
       properties: ['openDirectory' as const, 'createDirectory' as const],
     };
     const result = win

@@ -41,7 +41,7 @@ export async function runHelper(rows: unknown[], args: string[]): Promise<object
 
   try {
     return await new Promise<object>((resolve, reject) => {
-      execFile(
+      const child = execFile(
         exe,
         exeArgs,
         { windowsHide: true, timeout: 120_000, maxBuffer: 100 * 1024 * 1024 },
@@ -66,6 +66,7 @@ export async function runHelper(rows: unknown[], args: string[]): Promise<object
           }
         },
       );
+      child.stdin?.end();
     });
   } finally {
     try {

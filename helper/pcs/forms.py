@@ -242,11 +242,29 @@ def _3665(key: str, label: str, x: float, baseline: float, width: float, size: f
 
 _ROW_TOPS = (254.2, 308.9, 363.7, 418.4, 473.1, 527.8)
 _IDENT_OFFSET = 47.0
-_ADDR_OFFSET = 20.0
+_ADDR_ROW_HEIGHT = 13.675
+_ADDR_BASELINE = 10.0
 _ADDR_X = 235.0
-_ADDR_WIDTH = 225.0
+_ADDR_WIDTH = 228.0
 _IDENT_X = 37.0
 _IDENT_WIDTH = 188.0
+
+USPS_3665_ADDRESS_ROWS = 4
+
+
+def _3665_line(n: int, top: float) -> tuple[Slot, ...]:
+    rows = tuple(
+        _3665(
+            f"line{n}_address_{k}",
+            f"Recipient address - line {n} row {k}",
+            _ADDR_X,
+            top + (k - 1) * _ADDR_ROW_HEIGHT + _ADDR_BASELINE,
+            _ADDR_WIDTH,
+        )
+        for k in range(1, USPS_3665_ADDRESS_ROWS + 1)
+    )
+    return (*rows, _3665(f"line{n}_identifier", f"Firm identifier - line {n}", _IDENT_X, top + _IDENT_OFFSET, _IDENT_WIDTH))
+
 
 USPS_3665_SLOTS: tuple[Slot, ...] = (
     _3665("sender_1", "Sender name or address line 1", 22.0, 78.0, 200.0),
@@ -254,18 +272,7 @@ USPS_3665_SLOTS: tuple[Slot, ...] = (
     _3665("sender_3", "Sender address line 3", 22.0, 114.0, 200.0),
     _3665("sender_4", "Sender address line 4", 22.0, 132.0, 200.0),
     _3665("total_listed", "Total pieces listed by sender", 245.0, 100.0, 90.0),
-    _3665("line1_address", "Recipient address - line 1", _ADDR_X, _ROW_TOPS[0] + _ADDR_OFFSET, _ADDR_WIDTH),
-    _3665("line1_identifier", "Firm identifier - line 1", _IDENT_X, _ROW_TOPS[0] + _IDENT_OFFSET, _IDENT_WIDTH),
-    _3665("line2_address", "Recipient address - line 2", _ADDR_X, _ROW_TOPS[1] + _ADDR_OFFSET, _ADDR_WIDTH),
-    _3665("line2_identifier", "Firm identifier - line 2", _IDENT_X, _ROW_TOPS[1] + _IDENT_OFFSET, _IDENT_WIDTH),
-    _3665("line3_address", "Recipient address - line 3", _ADDR_X, _ROW_TOPS[2] + _ADDR_OFFSET, _ADDR_WIDTH),
-    _3665("line3_identifier", "Firm identifier - line 3", _IDENT_X, _ROW_TOPS[2] + _IDENT_OFFSET, _IDENT_WIDTH),
-    _3665("line4_address", "Recipient address - line 4", _ADDR_X, _ROW_TOPS[3] + _ADDR_OFFSET, _ADDR_WIDTH),
-    _3665("line4_identifier", "Firm identifier - line 4", _IDENT_X, _ROW_TOPS[3] + _IDENT_OFFSET, _IDENT_WIDTH),
-    _3665("line5_address", "Recipient address - line 5", _ADDR_X, _ROW_TOPS[4] + _ADDR_OFFSET, _ADDR_WIDTH),
-    _3665("line5_identifier", "Firm identifier - line 5", _IDENT_X, _ROW_TOPS[4] + _IDENT_OFFSET, _IDENT_WIDTH),
-    _3665("line6_address", "Recipient address - line 6", _ADDR_X, _ROW_TOPS[5] + _ADDR_OFFSET, _ADDR_WIDTH),
-    _3665("line6_identifier", "Firm identifier - line 6", _IDENT_X, _ROW_TOPS[5] + _IDENT_OFFSET, _IDENT_WIDTH),
+    *(slot for n, top in enumerate(_ROW_TOPS, start=1) for slot in _3665_line(n, top)),
     _3665("page_n", "Page number", 162.0, 594.0, 18.0, 7.0),
     _3665("page_of", "Total pages", 192.0, 594.0, 18.0, 7.0),
 )
