@@ -77,6 +77,18 @@ export async function executeQuery<T>(dax: string): Promise<T[]> {
   }, { maxAttempts: 3, baseDelayMs: 1000 });
 }
 
+export async function dataRefreshedAt(): Promise<string | null> {
+  try {
+    const rows = await executeQuery<{ RefreshedAt: string | null }>(
+      "EVALUATE ROW(\"RefreshedAt\", MAX('POM META'[RefreshedAt]))",
+    );
+    const val = rows[0]?.RefreshedAt;
+    return val ?? null;
+  } catch {
+    return null;
+  }
+}
+
 interface RefreshListResponse {
   value: Array<{
     status: string;

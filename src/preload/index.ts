@@ -19,7 +19,7 @@ const electronAPI: ElectronAPI = {
     maximize: () => ipcRenderer.invoke('window:maximize'),
     close: () => ipcRenderer.invoke('window:close'),
     isMaximized: (): Promise<boolean> => ipcRenderer.invoke('window:is-maximized'),
-    setTitleBarOverlay: (options: { color: string; symbolColor: string }): Promise<void> => {
+    setTitleBarOverlay: (options: { color: string; symbolColor: string; height?: number }): Promise<void> => {
       ipcRenderer.send('window:set-title-bar-overlay', options);
       return Promise.resolve();
     },
@@ -27,6 +27,7 @@ const electronAPI: ElectronAPI = {
 
   app: {
     getVersion: (): Promise<string> => ipcRenderer.invoke('app:get-version'),
+    openOutput: (dir: string): Promise<void> => ipcRenderer.invoke('app:openOutput', dir),
   },
 
   update: {
@@ -36,6 +37,23 @@ const electronAPI: ElectronAPI = {
       return () => ipcRenderer.removeListener('update:state', handler);
     },
     install: () => ipcRenderer.invoke('update:install'),
+  },
+
+  claims: {
+    load: () => ipcRenderer.invoke('claims:load'),
+    refresh: () => ipcRenderer.invoke('claims:refresh'),
+    generate: (opts: { tripIds: number[] }) =>
+      ipcRenderer.invoke('claims:generate', opts),
+    onProgress: (cb: (text: string) => void) => {
+      const handler = (_event: IpcRendererEvent, text: string) => cb(text);
+      ipcRenderer.on('claims:progress', handler);
+      return () => ipcRenderer.removeListener('claims:progress', handler);
+    },
+  },
+
+  settings: {
+    get: () => ipcRenderer.invoke('settings:get'),
+    chooseOutputDir: () => ipcRenderer.invoke('settings:chooseOutputDir'),
   },
 };
 

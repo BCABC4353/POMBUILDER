@@ -1,0 +1,306 @@
+from __future__ import annotations
+
+from dataclasses import dataclass
+from datetime import date, timedelta
+
+from . import forms as f
+from . import geometry as g
+from .clock import REPETITIVE_LOOKBACK_DAYS, Clock
+from .mapping import PacketData, split_address_lines
+from .overlay import Sheet, SheetBuilder
+from .selector import DISPUTED_LABELS, PATH_REPETITIVE, Selection, tri
+
+VALIDITY_SINGLE = (
+    "Valid for the round trip on the transport date printed above. Sign and date Section III on the day you sign."
+)
+VALIDITY_REPETITIVE = (
+    "Scheduled repetitive transport: this form covers scheduled trips for 60 days from the date signed in Section III "
+    "and is not valid for a transport performed before that date."
+)
+FORCED_STAMP = "BUILT WITHOUT A COMPLETE BENEFICIARY IDENTITY - GENERATED WITH --force"
+
+TITLE_SIZE = 11.1
+NOTE_SIZE = 6.4
+FOOT_SIZE = 6.0
+
+CERT_NOTE_BASELINE = 787.0
+CERT_HEADER_BASELINE = 10.0
+CERT_TITLE_BASELINE = 25.0
+CERT_NOTE_LEFT = 54.0
+CERT_NOTE_WIDTH = 504.0
+
+ATTRIBUTION = "Sample form from Page, Wolfberg & Wirth (www.pwwemslaw.com)"
+
+SECTION_I_KEYS: tuple[str, ...] = (
+    "patient_name",
+    "patient_dob",
+    "member_id",
+    "service_date",
+)
+
+PLACE_KEYS: tuple[tuple[str, str], ...] = (("origin", "Origin"), ("destination", "Destination"))
+
+MEMBER_SOURCES = (
+    "medical_necessity_medicare_id",
+    "pcs_medicare_id",
+    "medicare_number",
+    "medicare_no",
+    "wps_medicare_id",
+)
+
+PART_A_SOURCES = (
+    "medical_necessity_medicare_part_a_pps_drg",
+    "medical_necessity_medicare_part_a",
+    "pcs_medicare_part_a_covered",
+    "medicare_part_a_pps_drg",
+    "medicare_part_a_covered",
+)
+
+HOSPICE_SOURCES = (
+    "medical_necessity_hospice_transport_related_to_terminal_illness",
+    "hospice_transport_related_to_terminal_illness",
+    "medical_necessity_hospice_terminal_illness",
+)
+
+
+def _title(organization: str) -> str:
+    name = " ".join(g.ascii_safe(organization).split())
+    if not name:
+        return "Certification of Medical Necessity for Non-Emergency Ambulance Services"
+    return f"{name} Medical Necessity Certification Statement"
+
+
+def _place_name(place: str) -> str:
+    head = place.split(" - ")[0].strip()
+    return head or place
+
+
+def _clip(text: str, size: float, width: float = CERT_NOTE_WIDTH) -> str:
+    body = " ".join(g.ascii_safe(text).split())
+    while body and g.text_width(body, g.FONT_LABEL, size) > width:
+        body = body[: body.rfind(" ")] if " " in body else body[:-1]
+    return body
+
+
+def _first(fields: dict[str, str], keys: tuple[str, ...]) -> str:
+    from .selector import first_variant
+
+    for key in keys:
+        value = first_variant(fields.get(key))
+        if value:
+            return value
+    return ""
+
+
+def build_certification(
+    data: PacketData,
+    selection: Selection | None = None,
+    clock: Clock | None = None,
+    constants: dict[str, str] | None = None,
+    fields: dict[str, str] | None = None,
+    generated_on: date | None = None,
+) -> Sheet:
+    constants = constants or {}
+    fields = fields or {}
+    stamp = generated_on or date.today()
+    builder = SheetBuilder(f.CERT_TEMPLATE, name="medical_necessity_certification")
+
+    heading = _title(data.values.get("supplier_name") or constants.get("supplier_name", ""))
+    builder.title = heading
+    builder.cover(*f.CERT_TITLE_BOX)
+    fitted = heading
+    size = TITLE_SIZE
+    while size > 7.0 and g.text_width(fitted, g.FONT_BOLD, size) > f.CERT_TITLE_BOX[2] - f.CERT_TITLE_BOX[0]:
+        size = round(size - 0.2, 2)
+    builder.stamp(g.Text(f.CERT_TITLE_BOX[0] + 1.0, CERT_TITLE_BASELINE, fitted, g.FONT_BOLD, size))
+
+    for key in SECTION_I_KEYS:
+        if key in data.blanks:
+            continue
+        builder.set(key, data.values.get(key, ""))
+
+    for key, label in PLACE_KEYS:
+        place = data.values.get(key, "")
+        if not place or key in data.blanks:
+            continue
+        slot = f.CERT_TEMPLATE.slot(key)
+        if g.text_width(place, slot.font, slot.size) <= slot.width:
+            builder.set(key, place)
+            continue
+        short = _place_name(place)
+        builder.set(key, short)
+        if short != place:
+            builder.notes.append(
+                f"The {label} line on this form is too short for the full place string, so it carries "
+                f"'{short}'. The address and room detail are on the cover letter: {place}"
+            )
+
+    member = data.values.get("member_id", "")
+    explicit = _first(fields, MEMBER_SOURCES)
+    if explicit:
+        builder.set("member_id", explicit)
+    elif member:
+        builder.notes.append(
+            "No Medicare number was extracted. The Medicare # line carries the member or record identifier that was "
+            "found instead; confirm it before mailing."
+        )
+
+    disputed = sorted({DISPUTED_LABELS.get(name, name.replace("_", " ")) for name in data.conflicts})
+    if disputed:
+        builder.notes.append(
+            "Our records disagree with each other on "
+            + ", ".join(disputed)
+            + ". The value printed is the one the record best supports; two sources named different values and we "
+            "could not tell which is right. Correct it on the form if what we printed is wrong."
+        )
+    for note in data.selection_notes:
+        builder.notes.append(f"Chosen from conflicting sources by the record's own age: {note}")
+
+    part_a = tri(_first(fields, PART_A_SOURCES))
+    builder.tri("part_a_yes", "part_a_no", part_a)
+    if part_a == "Unknown":
+        builder.notes.append("Medicare Part A (PPS/DRG) coverage was not extracted; that pair of boxes is left blank.")
+
+    hospice = tri(_first(fields, HOSPICE_SOURCES))
+    builder.tri("hospice_yes", "hospice_no", hospice)
+
+    reason = _first(fields, ("destination_reason", "transfer_reason", "transport_reason"))
+    if reason:
+        builder.set("not_closest_reason", reason)
+        builder.notes.append(
+            "The 'why was the patient transported to another facility' line carries the destination reason recorded on "
+            "the report. The closest-appropriate-facility Yes/No boxes are left blank: nothing in the record answers "
+            "that question."
+        )
+
+    validity = VALIDITY_REPETITIVE if (selection and selection.path == PATH_REPETITIVE) else VALIDITY_SINGLE
+    builder.stamp(g.Text(CERT_NOTE_LEFT, CERT_NOTE_BASELINE, _clip(validity, NOTE_SIZE), g.FONT_LABEL, NOTE_SIZE))
+
+    if clock is not None and selection is not None and selection.path == PATH_REPETITIVE:
+        earliest = clock.service_date - timedelta(days=REPETITIVE_LOOKBACK_DAYS)
+        builder.notes.append(
+            f"Repetitive series: a signature dated between {earliest.isoformat()} and "
+            f"{clock.service_date.isoformat()} covers this date of service. A signature dated today covers scheduled "
+            "transports for the following 60 days and cannot reach back to this trip."
+        )
+
+    reference = " | ".join(
+        part
+        for part in (
+            FORCED_STAMP if data.forced_incomplete else "",
+            data.values.get("claim_ref", ""),
+            f"prepared {stamp.isoformat()}",
+            ATTRIBUTION,
+        )
+        if part
+    )
+    builder.stamp(
+        g.Text(
+            CERT_NOTE_LEFT,
+            CERT_HEADER_BASELINE,
+            _clip(reference, FOOT_SIZE),
+            g.FONT_BOLD if data.forced_incomplete else g.FONT_LABEL,
+            FOOT_SIZE,
+        )
+    )
+
+    sheet = builder.build()
+    data.notes.extend(note for note in builder.notes if note not in data.notes)
+    return sheet
+
+
+def _address_rows(name: str, address: str, limit: int) -> list[str]:
+    rows = [row for row in (name,) if row]
+    rows.extend(split_address_lines(address))
+    if len(rows) > limit:
+        rows = [*rows[: limit - 1], ", ".join(rows[limit - 1 :])]
+    return rows
+
+
+def build_certificate_of_mailing(
+    recipient_name: str,
+    recipient_lines: tuple[str, ...] | list[str],
+    constants: dict[str, str],
+    reference: str = "",
+    batch_id: str = "",
+    generated_on: date | None = None,
+    forced: bool = False,
+) -> Sheet:
+    stamp = generated_on or date.today()
+    builder = SheetBuilder(f.USPS_TEMPLATE)
+
+    sender = _address_rows(
+        constants.get("supplier_name", ""),
+        constants.get("supplier_address", ""),
+        len(f.USPS_FROM_KEYS),
+    )
+    for key, row in zip(f.USPS_FROM_KEYS, sender):
+        builder.set(key, row)
+
+    tail = [line for line in list(recipient_lines)[1:] if line]
+    addressee = _address_rows(recipient_name, ", ".join(tail), len(f.USPS_TO_KEYS))
+    for key, row in zip(f.USPS_TO_KEYS, addressee):
+        builder.set(key, row)
+
+    trail = "  |  ".join(
+        part
+        for part in (
+            f"claim {reference}" if reference else "",
+            f"batch {batch_id}" if batch_id else "",
+            f"prepared {stamp.isoformat()}",
+        )
+        if part
+    )
+    builder.stamp(g.Text(f.USPS_REFERENCE_X, f.USPS_REFERENCE_BASELINE, trail, g.FONT_LABEL, f.USPS_REFERENCE_SIZE))
+    if forced:
+        builder.stamp(
+            g.Text(
+                f.USPS_REFERENCE_X,
+                f.USPS_REFERENCE_BASELINE + 11.0,
+                FORCED_STAMP,
+                g.FONT_BOLD,
+                f.USPS_REFERENCE_SIZE,
+            )
+        )
+    return builder.build()
+
+
+_FIRM_LINES_PER_SHEET = 6
+
+
+@dataclass(frozen=True)
+class FirmLine:
+    recipient_name: str
+    lines: tuple[str, ...]
+    identifier: str
+
+
+def build_firm_sheets(
+    lines: list[FirmLine],
+    constants: dict[str, str],
+    batch_id: str,
+    generated_on: date,
+) -> list[Sheet]:
+    n_sheets = max(1, (len(lines) + _FIRM_LINES_PER_SHEET - 1) // _FIRM_LINES_PER_SHEET)
+    sender = _address_rows(
+        constants.get("supplier_name", ""),
+        constants.get("supplier_address", ""),
+        4,
+    )
+    sheets = []
+    for sheet_idx in range(n_sheets):
+        chunk = lines[sheet_idx * _FIRM_LINES_PER_SHEET : (sheet_idx + 1) * _FIRM_LINES_PER_SHEET]
+        builder = SheetBuilder(f.USPS_3665_TEMPLATE)
+        for i, key in enumerate(("sender_1", "sender_2", "sender_3", "sender_4")):
+            if i < len(sender):
+                builder.set(key, sender[i])
+        builder.set("total_listed", str(len(chunk)))
+        builder.set("page_n", str(sheet_idx + 1))
+        builder.set("page_of", str(n_sheets))
+        for n, line in enumerate(chunk, start=1):
+            parts = [line.recipient_name] + list(line.lines)
+            address_text = ", ".join(p for p in parts if p)
+            builder.set(f"line{n}_address", address_text)
+            builder.set(f"line{n}_identifier", line.identifier)
+        sheets.append(builder.build())
+    return sheets

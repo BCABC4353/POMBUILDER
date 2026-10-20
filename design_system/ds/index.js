@@ -11,3 +11,7 @@ export { ErrorState } from './ErrorState.jsx';
 export { ErrorBoundary } from './ErrorBoundary.jsx';
 export { Label } from './Label.jsx';
 export { SegmentedControl } from './SegmentedControl.jsx';
+export { WrapCell } from './WrapCell.jsx';
+export { TableSkeleton, SHIMMER_CLASS } from './TableSkeleton.jsx';
+export * from './tableMeasure.js';
+export * from './tableGrid.js';

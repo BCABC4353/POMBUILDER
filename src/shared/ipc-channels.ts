@@ -17,10 +17,21 @@ export const IPC_CHANNELS = {
   },
   app: {
     getVersion: 'app:get-version',
+    openOutput: 'app:openOutput',
   },
   update: {
     state: 'update:state',
     install: 'update:install',
+  },
+  claims: {
+    load: 'claims:load',
+    refresh: 'claims:refresh',
+    progress: 'claims:progress',
+    generate: 'claims:generate',
+  },
+  settings: {
+    get: 'settings:get',
+    chooseOutputDir: 'settings:chooseOutputDir',
   },
 } as const;
 

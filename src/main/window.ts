@@ -19,9 +19,9 @@ export function createWindow(): void {
     title: APP_NAME,
     titleBarStyle: 'hidden',
     titleBarOverlay: {
-      color: '#1F1F1F',
-      symbolColor: '#FFFFFF',
-      height: 40,
+      color: '#1a2335',
+      symbolColor: '#f1f5f9',
+      height: 46,
     },
     webPreferences: {
       partition: isDev ? undefined : PARTITION_NAME,
@@ -32,7 +32,7 @@ export function createWindow(): void {
     },
     icon: path.join(__dirname, '../../../assets/icons/icon.ico'),
     show: false,
-    backgroundColor: '#1F1F1F',
+    backgroundColor: '#020617',
   });
 
   mainWindow.once('ready-to-show', () => {

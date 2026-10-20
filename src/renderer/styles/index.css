@@ -50,8 +50,21 @@ samp {
   font-variant-numeric: tabular-nums;
 }
 
-.ds-table-row {
-  height: clamp(1.75rem, 0.8125rem + 3cqb, 2.5rem);
+#root {
+  --claims-table-row-height: clamp(
+    1.75rem,
+    min(0.8125rem + 3cqb, 0.8125rem + 3 * var(--posture-bu)),
+    2.5rem
+  );
+  --claims-table-header-h: clamp(
+    1.5rem,
+    3.56 * var(--posture-bu),
+    var(--claims-table-row-height)
+  );
+}
+
+.claims-row-rule {
+  border-bottom: 1px solid color-mix(in srgb, var(--border-default) 42%, transparent);
 }
 
 @keyframes fade-in {
