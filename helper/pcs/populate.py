@@ -229,6 +229,91 @@ def build_certification(
     return sheet
 
 
+COUNTY_REFERENCE_X = 36.0
+COUNTY_REFERENCE_BASELINE = 10.0
+COUNTY_REFERENCE_WIDTH = 540.0
+
+
+def _county_reference(builder: SheetBuilder, data: PacketData, stamp: date) -> None:
+    reference = " | ".join(part for part in (data.values.get("claim_ref", ""), f"prepared {stamp.isoformat()}") if part)
+    builder.stamp(
+        g.Text(
+            COUNTY_REFERENCE_X,
+            COUNTY_REFERENCE_BASELINE,
+            _clip(reference, FOOT_SIZE, COUNTY_REFERENCE_WIDTH),
+            g.FONT_LABEL,
+            FOOT_SIZE,
+        )
+    )
+
+
+def _labelled(label: str, value: str) -> str:
+    return f"{label}: {value}" if value else ""
+
+
+def build_solano_certification(
+    data: PacketData,
+    fields: dict[str, str] | None = None,
+    generated_on: date | None = None,
+) -> Sheet:
+    fields = fields or {}
+    stamp = generated_on or date.today()
+    builder = SheetBuilder(f.SOLANO_TEMPLATE)
+
+    values = data.values
+    dates = " | ".join(
+        part
+        for part in (
+            _labelled("DOB", values.get("patient_dob", "")),
+            _labelled("DATE OF SERVICE", values.get("service_date", "")),
+        )
+        if part
+    )
+    imprint = [
+        values.get("patient_name", ""),
+        dates,
+        _labelled("POLICY #", values.get("member_id", "")),
+        _labelled("RUN #", values.get("claim_ref", "")),
+    ]
+    for key, line in zip(f.SOLANO_IMPRINT_KEYS, [line for line in imprint if line]):
+        builder.set(key, line)
+
+    receiving = fields.get("destination_form") or values.get("destination", "")
+    if receiving:
+        builder.set("receiving_facility", receiving)
+
+    _county_reference(builder, data, stamp)
+    sheet = builder.build()
+    data.notes.extend(note for note in builder.notes if note not in data.notes)
+    return sheet
+
+
+def build_norcal_certification(
+    data: PacketData,
+    fields: dict[str, str] | None = None,
+    generated_on: date | None = None,
+    service: date | None = None,
+) -> Sheet:
+    fields = fields or {}
+    stamp = generated_on or date.today()
+    builder = SheetBuilder(f.NORCAL_TEMPLATE)
+
+    values = data.values
+    builder.set("patient_name", values.get("patient_name", ""))
+    builder.set("patient_dob", values.get("patient_dob", ""))
+    builder.set("pickup_facility", fields.get("origin_form") or values.get("origin", ""))
+    if service is not None:
+        builder.set("requested_month", f"{service.month:02d}")
+        builder.set("requested_day", f"{service.day:02d}")
+        builder.set("requested_year", f"{service.year % 100:02d}")
+    builder.set("destination", values.get("destination", ""))
+
+    _county_reference(builder, data, stamp)
+    sheet = builder.build()
+    data.notes.extend(note for note in builder.notes if note not in data.notes)
+    return sheet
+
+
 def _address_rows(name: str, address: str, limit: int) -> list[str]:
     rows = [row for row in (name,) if row]
     rows.extend(split_address_lines(address))

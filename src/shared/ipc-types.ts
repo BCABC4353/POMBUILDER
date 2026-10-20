@@ -52,6 +52,7 @@ export interface ClaimRow {
   checked: boolean;
   recipient_lines: string[];
   supplier_lines: string[];
+  pcs_form: string;
 }
 
 export interface LoadResult {

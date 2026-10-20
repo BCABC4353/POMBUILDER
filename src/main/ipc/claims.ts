@@ -48,6 +48,7 @@ interface HelperGateRow {
   checked: boolean;
   recipient_lines: string[];
   supplier_lines: string[];
+  pcs_form: string;
 }
 
 interface HelperGateResult {
@@ -135,6 +136,7 @@ async function loadClaims(): Promise<IPCResponse<LoadResult>> {
         checked: gate?.checked ?? false,
         recipient_lines: gate?.recipient_lines ?? [],
         supplier_lines: gate?.supplier_lines ?? [],
+        pcs_form: gate?.pcs_form ?? '',
       };
     });
 

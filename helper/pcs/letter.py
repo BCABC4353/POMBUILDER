@@ -113,7 +113,7 @@ def build_letter(
     )
     if rescuenet:
         cursor.paragraph(
-            "Sections II and III of the form are blank, and they are blank on purpose. We have filled in the facts we "
+            "The clinical and certification sections of the form are blank, and they are blank on purpose. We have filled in the facts we "
             "already hold - who the patient is, and where and when we transported. The certification itself is yours to write. "
             "Please do not sign a statement you cannot support from your own knowledge of this patient, "
             "and please do not treat anything we have printed as the certification."

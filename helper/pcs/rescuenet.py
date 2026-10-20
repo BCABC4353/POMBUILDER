@@ -11,7 +11,13 @@ from . import geometry as g
 from .clock import PATH_NONREPETITIVE, PATH_REPETITIVE, build_clock, parse_date
 from .letter import build_letter
 from .mapping import PacketData
-from .populate import FirmLine, build_certification, build_firm_sheets, firm_line_notes
+from .populate import (
+    FirmLine,
+    build_firm_sheets,
+    build_norcal_certification,
+    build_solano_certification,
+    firm_line_notes,
+)
 from .selector import STATUS_REQUIRED, Selection
 from .service import PacketBuild
 
@@ -73,7 +79,7 @@ _G_DIALYSIS = Gate(
 )
 _G_NO_POLICY = Gate(
     "no_policy_number", False, False,
-    "No policy number on the current payor; the PCS 'Medicare #' line will print blank.",
+    "No policy number on the current payor; the PCS will print without it.",
     "Add the policy number on the patient's current payor (Customer > Payors).",
 )
 _G_NO_PAYOR = Gate(
@@ -101,6 +107,11 @@ _G_NOT_DIRECT_CARE = Gate(
     "Pickup was not a SNF or hospital; the patient may not have been under a physician's direct care, so a certification may not be required.",
     "Confirm the pickup location and whether the patient was under a physician's direct care.",
 )
+_G_NO_PICKUP_ZIP = Gate(
+    "no_pickup_zip", False, False,
+    "No pickup ZIP code on the trip; the Northern California form will be used instead of the Solano County form.",
+    "Enter the pickup ZIP code on the trip in RescueNet.",
+)
 _G_CANCELLED = Gate(
     "cancelled_trip", False, False,
     "Trip is cancelled.",
@@ -112,6 +123,25 @@ _NONE_SENTINELS: frozenset[str] = frozenset({"<none>", "none"})
 
 BILLING_CONTACT = "Sandy Whaley, VP of Communications and Finance"
 FIRM_SHEET_ROTATION = 90
+
+FORM_SOLANO = "SOLANO"
+FORM_NORCAL = "NORCAL"
+
+SOLANO_ZIPS: frozenset[str] = frozenset({
+    "94510", "94512", "94533", "94534", "94535", "94571", "94585", "94589",
+    "94590", "94591", "94592", "95620", "95625", "95687", "95688", "95696",
+})
+
+_ZIP5 = re.compile(r"\d{5}")
+
+
+def pickup_zip(row: dict) -> str:
+    hit = _ZIP5.match(_code(row, "PickupZip"))
+    return hit.group(0) if hit else ""
+
+
+def pcs_form(row: dict) -> str:
+    return FORM_SOLANO if pickup_zip(row) in SOLANO_ZIPS else FORM_NORCAL
 
 
 def _s(row: dict, key: str) -> str:
@@ -201,6 +231,9 @@ def gate(row: dict, as_of: date) -> list[Gate]:
 
     if _code(row, "PickupModifier") not in ("H", "N"):
         gates.append(_G_NOT_DIRECT_CARE)
+
+    if not pickup_zip(row):
+        gates.append(_G_NO_PICKUP_ZIP)
 
     if _i(row, "StatusCode") < 0 or _code(row, "TripStatus").startswith("CANCELLED"):
         gates.append(_G_CANCELLED)
@@ -303,11 +336,13 @@ def _form_date(value: str) -> str:
 
 
 def _form_place(row: dict, prefix: str) -> str:
+    residence = _i(row, f"{prefix}IsResidence") == 1 or _code(row, f"{prefix}Modifier") == "R"
     facility = _a(row, f"{prefix}Facility")
-    if facility and _i(row, f"{prefix}IsResidence") != 1:
+    if facility and not residence:
         return facility
     where = ", ".join(p for p in (_a(row, f"{prefix}Addr"), _a(row, f"{prefix}City")) if p)
-    return " - ".join(p for p in ("RESIDENCE", where) if p)
+    kind = "RESIDENCE" if residence else _a(row, f"{prefix}FacilityType")
+    return " - ".join(p for p in (kind, where) if p)
 
 
 def to_build(row: dict, as_of: date, generated_on: date) -> PacketBuild:
@@ -381,7 +416,10 @@ def to_build(row: dict, as_of: date, generated_on: date) -> PacketBuild:
         "destination_form": _form_place(row, "Dropoff"),
     }
 
-    cert_sheet = build_certification(data, selection, clock, consts, fields, generated_on, source="rescuenet")
+    if pcs_form(row) == FORM_SOLANO:
+        cert_sheet = build_solano_certification(data, fields, generated_on)
+    else:
+        cert_sheet = build_norcal_certification(data, fields, generated_on, parse_date(trip_date))
     letter_doc = build_letter(data, selection, clock, consts, "PCS", generated_on, source="rescuenet")
 
     return PacketBuild(
@@ -437,6 +475,7 @@ def collate(
             "RunNumberText": build.run_number,
             "TripDate": str(row.get("TripDate") or ""),
             "AddresseeSource": str(row.get("AddresseeSource") or ""),
+            "pcs_form": pcs_form(row),
             "firm_sheet": idx // 6 + 1,
             "firm_line": idx % 6 + 1,
             "pcs_page": pcs_page,

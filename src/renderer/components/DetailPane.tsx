@@ -4,6 +4,11 @@ import type { ClaimRow } from '@shared/ipc-types';
 const PANE_CLASS =
   'flex h-full min-h-0 w-[clamp(288px,22vw,420px)] shrink-0 flex-col border-l border-glass-edge bg-surface-raised';
 
+const PCS_FORM_LABELS: Record<string, string> = {
+  SOLANO: 'Solano County Interfacility Transfer Request (pickup ZIP in Solano County)',
+  NORCAL: 'Medic Northern California Transport Justification',
+};
+
 function AddressBlock({ lines, label }: { lines: string[]; label: string }) {
   const nonEmpty = lines.filter(Boolean);
   if (nonEmpty.length === 0) return null;
@@ -64,6 +69,13 @@ export function DetailPane({ row }: { row: ClaimRow | null }) {
             </div>
           </div>
         )}
+
+        <div>
+          <SectionHeader>PCS form</SectionHeader>
+          <p className="mt-1 text-sm text-content" data-testid="detail-pcs-form">
+            {PCS_FORM_LABELS[row.pcs_form] ?? row.pcs_form}
+          </p>
+        </div>
 
         {noAddressee ? (
           <div>

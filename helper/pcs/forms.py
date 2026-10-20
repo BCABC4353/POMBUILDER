@@ -168,6 +168,109 @@ CERT_TEMPLATE = Template(
     terms=CERT_TERMS,
 )
 
+SOLANO_FILENAME = "solano_interfacility_transfer_2024.pdf"
+SOLANO_TERMS = "Solano EMS / Solano Public Health Interfacility Ambulance Transfer Request Form (2024)."
+
+SOLANO_IMPRINT_X = 309.5
+SOLANO_IMPRINT_WIDTH = 271.0
+SOLANO_IMPRINT_BASELINES = (27.5, 37.5, 47.5, 57.5)
+SOLANO_IMPRINT_KEYS = tuple(f"imprint_{n}" for n in range(1, len(SOLANO_IMPRINT_BASELINES) + 1))
+
+SOLANO_SLOTS: tuple[Slot, ...] = (
+    *(
+        Slot(key, f"Patient imprint line {n}", SOLANO_IMPRINT_X, baseline, SOLANO_IMPRINT_WIDTH, 8.0)
+        for n, (key, baseline) in enumerate(zip(SOLANO_IMPRINT_KEYS, SOLANO_IMPRINT_BASELINES), start=1)
+    ),
+    _line("receiving_facility", "Receiving Facility", 105.2, 311.9, 750.6),
+)
+
+SOLANO_BLANKS: tuple[Blank, ...] = (
+    Blank("diagnosis", "Patient Diagnosis and Allergies", OWNER_SIGNER, "clinical facts the ordering clinician supplies"),
+    Blank(
+        "certification",
+        "Physician Certification Statement - signature, date, printed name and credentials, NPI",
+        OWNER_SIGNER,
+        "no signature or signer identity may be produced by this program",
+    ),
+    Blank(
+        "levels",
+        "Patient condition, BLS / ALS / ALS-RN / CCT boxes, response level, additional orders",
+        OWNER_SIGNER,
+        "the level of care and its reasons are the certification itself",
+    ),
+    Blank(
+        "ems_times",
+        "EMS Time of Request, EMS Time of Arrival, Receiving Physician, Date and Time",
+        OWNER_SIGNER,
+        "not held on the trip record used to build this form",
+    ),
+)
+
+SOLANO_TEMPLATE = Template(
+    name="solano_interfacility_transfer",
+    title="Solano County Interfacility Ambulance Transfer Request Form",
+    filename=SOLANO_FILENAME,
+    slots=SOLANO_SLOTS,
+    blanks=SOLANO_BLANKS,
+    terms=SOLANO_TERMS,
+)
+
+NORCAL_FILENAME = "medic_norcal_transport_justification.pdf"
+NORCAL_TERMS = "Medic Ambulance Service Medical Transport Justification Form - Northern California Operations."
+
+NORCAL_SLOTS: tuple[Slot, ...] = (
+    _line("patient_name", "Name", 59.0, 210.0, 148.0),
+    _line("patient_dob", "Date of Birth", 271.0, 354.0, 147.5),
+    _line("pickup_facility", "Pick up Facility", 95.5, 211.0, 219.0),
+    _line("requested_month", "Date Requested - month", 396.0, 427.0, 218.0),
+    _line("requested_day", "Date Requested - day", 432.0, 462.0, 218.0),
+    _line("requested_year", "Date Requested - year", 477.0, 499.0, 218.0),
+    _line("destination", "Destination Facility Name and Address", 191.0, 572.0, 235.8),
+)
+
+NORCAL_BLANKS: tuple[Blank, ...] = (
+    Blank("ssn_mrn", "SSN and MRN", OWNER_BILLING, "not printed on a mailed request"),
+    Blank(
+        "clinical",
+        "Patient Diagnosis, Allergies, Mental and Physical Limitations, Purpose of Visit",
+        OWNER_SIGNER,
+        "clinical facts the ordering clinician supplies",
+    ),
+    Blank(
+        "transport",
+        "Room #, time requested, Receiving Physician, Wait and Return",
+        OWNER_SIGNER,
+        "not held on the trip record used to build this form",
+    ),
+    Blank(
+        "levels",
+        "Patient condition, response requested, wheelchair / gurney / BLS / ALS / CCT boxes",
+        OWNER_SIGNER,
+        "the level of care and its reasons are the certification itself",
+    ),
+    Blank(
+        "certification",
+        "Physician Certification Statement - printed name, signature, NPI, date",
+        OWNER_SIGNER,
+        "no signature or signer identity may be produced by this program",
+    ),
+    Blank(
+        "non_covered",
+        "Notification of Transportation Non-Covered - patient name, signature, date",
+        OWNER_SIGNER,
+        "signed by the patient, never by this program",
+    ),
+)
+
+NORCAL_TEMPLATE = Template(
+    name="norcal_transport_justification",
+    title="Medic Ambulance Service Medical Transport Justification Form - Northern California Operations",
+    filename=NORCAL_FILENAME,
+    slots=NORCAL_SLOTS,
+    blanks=NORCAL_BLANKS,
+    terms=NORCAL_TERMS,
+)
+
 USPS_PLACE = (126.0, 72.0, 486.0, 288.0)
 USPS_DX = 126.0
 USPS_DY = 72.0

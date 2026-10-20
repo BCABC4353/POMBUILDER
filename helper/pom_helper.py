@@ -15,7 +15,7 @@ else:
     sys.path.insert(0, str(_here))
 
 from pcs.mapping import split_address_lines
-from pcs.rescuenet import collate, constants_for, gate, recipient_lines, to_build
+from pcs.rescuenet import collate, constants_for, gate, pcs_form, recipient_lines, to_build
 
 
 def _fail(msg: str) -> None:
@@ -76,6 +76,7 @@ def cmd_gate(args: argparse.Namespace) -> None:
             "checked": checked,
             "recipient_lines": rlines,
             "supplier_lines": slines,
+            "pcs_form": pcs_form(row),
         })
     sys.stdout.write(json.dumps({"rows": result}, ensure_ascii=False) + "\n")
     sys.stdout.flush()
@@ -140,7 +141,7 @@ def cmd_build(args: argparse.Namespace) -> None:
     page_count = doc.page_count
     doc.close()
 
-    fieldnames = ["RunNumberText", "TripDate", "AddresseeSource", "firm_sheet", "firm_line",
+    fieldnames = ["RunNumberText", "TripDate", "AddresseeSource", "pcs_form", "firm_sheet", "firm_line",
                   "pcs_page", "letter_page", "hold_until", "gate_codes", "notes"]
     with open(manifest_csv_path, "w", newline="", encoding="utf-8") as fh:
         writer = csv.DictWriter(fh, fieldnames=fieldnames)
