@@ -56,9 +56,10 @@ _G_NO_PHYSICIAN = Gate(
 )
 _G_NO_ADDRESSEE = Gate(
     "no_addressee", True, False,
-    "No mailing address: the trip has no ordering facility, and no pickup facility with an address on file.",
-    "Add the ordering facility on the trip, or choose the pickup facility from the facility list "
-    "(an address typed on the trip without a facility does not count).",
+    "No mailing address: the trip has no ordering facility with an address on file, and no pickup facility with an "
+    "address on file.",
+    "Add the ordering facility on the trip and make sure its address is filled in under Admin > Facilities, or choose "
+    "the pickup facility from the facility list (an address typed on the trip without a facility does not count).",
 )
 _G_STANDING = Gate(
     "standing_order", True, False,
