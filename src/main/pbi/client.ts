@@ -1,6 +1,6 @@
 import { getAuthService } from '../auth/singleton';
-import { fetchWithTimeout, throwForStatus, RetriableHttpError, withRetry } from '../services/powerbi/http';
-import { POWERBI_API_BASE, POM_WORKSPACE_ID, POM_DATASET_ID } from '../../shared/constants';
+import { fetchWithTimeout, throwForStatus, withRetry } from '../services/powerbi/http';
+import { POWERBI_API_BASE, POM_WORKSPACE_ID, POM_DATASET_ID, POM_DATAFLOW_ID } from '../../shared/constants';
 import type { IPCResponse, TokenResult } from '../../shared/types';
 
 export interface RefreshInfo {
@@ -89,40 +89,36 @@ export async function dataRefreshedAt(): Promise<string | null> {
   }
 }
 
-interface RefreshListResponse {
-  value: Array<{
-    status: string;
+interface RunListResponse {
+  value?: Array<{
+    status?: string;
     startTime?: string;
     endTime?: string;
   }>;
 }
 
-export async function latestRefresh(): Promise<RefreshInfo | null> {
-  return withRetry(async () => {
-    const token = await getToken();
-    const url = `${POWERBI_API_BASE}/groups/${POM_WORKSPACE_ID}/datasets/${POM_DATASET_ID}/refreshes?$top=1`;
-    const resp = await fetchWithTimeout(url, {
-      headers: { Authorization: `Bearer ${token}` },
-    });
+async function runHistory(path: string): Promise<RefreshInfo[] | null> {
+  const token = await getToken();
+  const resp = await fetchWithTimeout(
+    `${POWERBI_API_BASE}/groups/${POM_WORKSPACE_ID}/${path}`,
+    { headers: { Authorization: `Bearer ${token}` } },
+    15_000,
+  );
+  if (resp.status === 401 || resp.status === 403 || resp.status === 404) return null;
+  if (!resp.ok) await throwForStatus(resp, path);
+  const body = (await resp.json()) as RunListResponse;
+  const runs: RefreshInfo[] = [];
+  for (const run of body.value ?? []) {
+    if (!run.startTime) continue;
+    runs.push({ status: run.status ?? '', startTime: run.startTime, endTime: run.endTime });
+  }
+  return runs;
+}
 
-    if (resp.status === 429) {
-      const retryAfterMs = (() => {
-        const h = resp.headers.get('Retry-After');
-        if (!h) return undefined;
-        const n = Number(h.trim());
-        return Number.isFinite(n) && n >= 0 ? Math.round(n * 1000) : undefined;
-      })();
-      throw new RetriableHttpError(429, 'latestRefresh: 429', retryAfterMs);
-    }
+export function dataflowRuns(): Promise<RefreshInfo[] | null> {
+  return runHistory(`dataflows/${POM_DATAFLOW_ID}/transactions`);
+}
 
-    if (!resp.ok) await throwForStatus(resp, 'latestRefresh');
-    const body = (await resp.json()) as RefreshListResponse;
-    const first = body.value?.[0];
-    if (!first || !first.startTime) return null;
-    return {
-      status: first.status,
-      startTime: first.startTime,
-      endTime: first.endTime,
-    };
-  }, { maxAttempts: 3, baseDelayMs: 1000 });
+export function datasetRuns(): Promise<RefreshInfo[] | null> {
+  return runHistory(`datasets/${POM_DATASET_ID}/refreshes?$top=10`);
 }

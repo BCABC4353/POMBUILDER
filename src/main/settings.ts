@@ -4,6 +4,19 @@ import * as fs from 'fs';
 
 interface SettingsSchema {
   outputDir?: string;
+  refreshDurationsMs?: number[];
+}
+
+const REFRESH_HISTORY_KEEP = 10;
+
+export function getRefreshDurations(): number[] {
+  const raw = settingsStore.get('refreshDurationsMs');
+  return Array.isArray(raw) ? raw.filter((n) => typeof n === 'number' && Number.isFinite(n) && n > 0) : [];
+}
+
+export function recordRefreshDuration(ms: number): void {
+  const next = [...getRefreshDurations(), Math.round(ms)].slice(-REFRESH_HISTORY_KEEP);
+  settingsStore.set('refreshDurationsMs', next);
 }
 
 const settingsStore = new Store<SettingsSchema>({

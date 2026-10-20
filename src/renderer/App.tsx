@@ -7,7 +7,8 @@ import { Toolbar } from './components/Toolbar';
 import { BlockedBanner } from './components/BlockedBanner';
 import { ClaimsTable } from './components/ClaimsTable';
 import { DetailPane } from './components/DetailPane';
-import { AlertTriangle, CheckCircle2, Loader2, X } from 'lucide-react';
+import { AlertTriangle, CheckCircle2, X } from 'lucide-react';
+import { RefreshProgressStrip } from './components/RefreshProgressStrip';
 import { Button, TableSkeleton } from '@ds/index.js';
 import { useAuthStore } from './stores/auth-store';
 import { useClaimsStore } from './stores/claims-store';
@@ -32,7 +33,7 @@ function ClaimsView({ version }: { version: string }) {
     error,
     lastRefresh,
     refreshing,
-    progressText,
+    progress,
     outputDir,
     generating,
     notice,
@@ -52,8 +53,8 @@ function ClaimsView({ version }: { version: string }) {
   useEffect(() => {
     void loadSettings();
     void load();
-    const unsub = window.electronAPI.claims.onProgress((text) => {
-      useClaimsStore.setState({ progressText: text });
+    const unsub = window.electronAPI.claims.onProgress((next) => {
+      if (useClaimsStore.getState().refreshing) useClaimsStore.setState({ progress: next });
     });
     return unsub;
   }, [load, loadSettings]);
@@ -124,16 +125,7 @@ function ClaimsView({ version }: { version: string }) {
           </Button>
         </div>
       )}
-      {refreshing && (
-        <div
-          role="status"
-          data-testid="refresh-progress"
-          className="flex shrink-0 items-center gap-fluid-sm border-b border-glass-edge bg-surface-raised px-fluid-md py-1.5 text-fluid-label font-bold text-content-secondary"
-        >
-          <Loader2 className="size-[1em] shrink-0 animate-spin" aria-hidden="true" />
-          <span className="min-w-0 [overflow-wrap:anywhere]">{progressText || 'Refreshing from RescueNet (usually under a minute)...'}</span>
-        </div>
-      )}
+      {refreshing && <RefreshProgressStrip progress={progress} />}
       <BlockedBanner rows={rows} disabled={refreshing} />
       <Toolbar
         checkedCount={checkedIds.size}

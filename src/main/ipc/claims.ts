@@ -2,9 +2,17 @@ import { ipcMain, dialog, shell } from 'electron';
 import * as fs from 'fs';
 import * as path from 'path';
 import { executeQuery, dataRefreshedAt } from '../pbi/client';
-import { trigger, waitForCompletion, REFRESH_PROGRESS_TEXT, REFRESH_TIMEOUT_MS, REFRESH_TIMEOUT_TEXT } from '../refresh';
+import {
+  createReporter,
+  trigger,
+  waitForCompletion,
+  PERCENT_CHECKING,
+  PERCENT_LOADING,
+  REFRESH_TIMEOUT_TEXT,
+  type ProgressReporter,
+} from '../refresh';
 import { runHelper } from '../helper';
-import { getOutputDir, setOutputDir } from '../settings';
+import { getOutputDir, recordRefreshDuration, setOutputDir } from '../settings';
 import { getMainWindow } from '../window';
 import { holdWhile } from '../updater';
 import type {
@@ -12,6 +20,7 @@ import type {
   GateInfo,
   LoadResult,
   GenerateResult,
+  RefreshProgress,
   SettingsData,
   IPCResponse,
 } from '../../shared/ipc-types';
@@ -66,10 +75,10 @@ interface HelperBuildResult {
 let _generating = false;
 let _refreshing = false;
 
-function pushProgress(text: string): void {
+function pushProgress(progress: RefreshProgress): void {
   const win = getMainWindow();
   if (win && !win.isDestroyed()) {
-    win.webContents.send('claims:progress', text);
+    win.webContents.send('claims:progress', progress);
   }
 }
 
@@ -89,8 +98,9 @@ function nowStr(): string {
   return `${hh}${min}${ss}`;
 }
 
-async function loadClaims(): Promise<IPCResponse<LoadResult>> {
+async function loadClaims(reporter?: ProgressReporter): Promise<IPCResponse<LoadResult>> {
   try {
+    reporter?.send('loading', PERCENT_LOADING, 'Downloading claims');
     const pbiRows = await executeQuery<PbiRawRow>("EVALUATE 'POM REQUIRED'");
 
     let lastRefresh: string | null = null;
@@ -100,6 +110,7 @@ async function loadClaims(): Promise<IPCResponse<LoadResult>> {
     }
 
     const today = todayStr();
+    reporter?.send('checking', PERCENT_CHECKING, `Checking ${pbiRows.length} ${pbiRows.length === 1 ? 'claim' : 'claims'}`);
     const gateResult = (await runHelper(pbiRows, ['gate', '--as-of', today])) as HelperGateResult;
 
     const gateMap = new Map<number, HelperGateRow>();
@@ -178,16 +189,12 @@ export function registerClaimsIpc(): void {
     }
     _refreshing = true;
     try {
-      pushProgress(REFRESH_PROGRESS_TEXT);
-      const baseline = await trigger();
+      const reporter = createReporter(pushProgress);
+      const baseline = await trigger(reporter);
 
-      const result = await waitForCompletion(baseline, {
-        timeoutMs: REFRESH_TIMEOUT_MS,
-        intervalMs: 5_000,
-        onTick: pushProgress,
-      });
+      const result = await waitForCompletion(baseline, reporter);
 
-      if (result === 'Timeout') {
+      if (result.outcome === 'Timeout') {
         return {
           success: false,
           error: {
@@ -196,9 +203,20 @@ export function registerClaimsIpc(): void {
           },
         };
       }
+      if (result.outcome === 'Failed') {
+        return {
+          success: false,
+          error: {
+            code: 'REFRESH_FAILED',
+            message: result.message,
+          },
+        };
+      }
 
-      pushProgress('Loading claims...');
-      return await loadClaims();
+      recordRefreshDuration(Date.now() - reporter.startedAt);
+      const loaded = await loadClaims(reporter);
+      if (loaded.success) reporter.send('done', 100, 'Claims refreshed');
+      return loaded;
     } catch (err) {
       return {
         success: false,

@@ -2,6 +2,7 @@ import { useRef } from 'react';
 import { Moon, Sun, RefreshCw } from 'lucide-react';
 import { Button } from '@ds/index.js';
 import { LOGO_SRC } from '../lib/logo';
+import { MarsLight } from './MarsLight';
 import { useTheme } from '../lib/theme';
 import { useTitleBarOverlay } from '../lib/titlebar';
 
@@ -57,7 +58,7 @@ export function Header({
               title={refreshDisabled ? 'Wait for the print file to finish' : 'Refresh claims'}
               className={`shrink-0 normal-case ${NO_DRAG}`}
             >
-              <RefreshCw className={refreshing ? 'animate-spin' : ''} />
+              {refreshing ? <MarsLight size="1.15em" active /> : <RefreshCw />}
               {refreshing ? 'Refreshing...' : 'Refresh'}
             </Button>
           )}

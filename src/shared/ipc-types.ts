@@ -55,6 +55,15 @@ export interface ClaimRow {
   pcs_form: string;
 }
 
+export type RefreshStage = 'starting' | 'rescuenet' | 'dataset' | 'loading' | 'checking' | 'done';
+
+export interface RefreshProgress {
+  stage: RefreshStage;
+  percent: number;
+  text: string;
+  elapsedMs: number;
+}
+
 export interface LoadResult {
   rows: ClaimRow[];
   gated: number;
@@ -107,7 +116,7 @@ export interface ElectronAPI {
     load: () => Promise<IPCResponse<LoadResult>>;
     refresh: () => Promise<IPCResponse<LoadResult>>;
     generate: (opts: { tripIds: number[] }) => Promise<IPCResponse<GenerateResult>>;
-    onProgress: (cb: (text: string) => void) => () => void;
+    onProgress: (cb: (progress: RefreshProgress) => void) => () => void;
   };
 
   settings: {

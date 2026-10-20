@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import type { ClaimRow } from '@shared/ipc-types';
+import type { ClaimRow, RefreshProgress } from '@shared/ipc-types';
 
 interface ClaimsState {
   rows: ClaimRow[];
@@ -9,7 +9,7 @@ interface ClaimsState {
   refreshing: boolean;
   error: string | null;
   lastRefresh: string | null;
-  progressText: string;
+  progress: RefreshProgress | null;
   outputDir: string | null;
   generating: boolean;
   notice: string | null;
@@ -44,7 +44,7 @@ export const useClaimsStore = create<ClaimsState>((set, get) => ({
   refreshing: false,
   error: null,
   lastRefresh: null,
-  progressText: '',
+  progress: null,
   outputDir: null,
   generating: false,
   notice: null,
@@ -76,7 +76,7 @@ export const useClaimsStore = create<ClaimsState>((set, get) => ({
 
   refresh: async () => {
     if (get().generating || get().refreshing) return;
-    set({ refreshing: true, error: null, notice: null, progressText: 'Refreshing from RescueNet (usually under a minute)...' });
+    set({ refreshing: true, error: null, notice: null, progress: { stage: 'starting', percent: 0, text: 'Starting refresh', elapsedMs: 0 } });
     try {
       const result = await window.electronAPI.claims.refresh();
       if (result.success) {
@@ -86,15 +86,15 @@ export const useClaimsStore = create<ClaimsState>((set, get) => ({
           checkedIds: initCheckedIds(rows),
           lastRefresh: result.data.lastRefresh,
           refreshing: false,
-          progressText: '',
+          progress: null,
         });
       } else {
-        set({ refreshing: false, progressText: '', error: result.error.message });
+        set({ refreshing: false, progress: null, error: result.error.message });
       }
     } catch (err) {
       set({
         refreshing: false,
-        progressText: '',
+        progress: null,
         error: err instanceof Error ? err.message : String(err),
       });
     }

@@ -12,6 +12,8 @@ export const POM_WORKSPACE_ID = 'e04b0a24-da17-4a17-ac97-2edd7a4e1675';
 
 export const POM_DATASET_ID = '23afc0ce-13b7-4079-ae5d-9c9ad2f0b637';
 
+export const POM_DATAFLOW_ID = 'b8a328a8-0176-40f7-8551-beb3e2039066';
+
 export const TOKEN = {
   FALLBACK_LIFETIME_MS: 3_600_000,
   VALIDATE_SHORT_CIRCUIT_MS: 5 * 60 * 1000,

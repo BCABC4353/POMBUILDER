@@ -1,6 +1,6 @@
 import { contextBridge, ipcRenderer } from 'electron';
 import type { IpcRendererEvent } from 'electron';
-import type { ElectronAPI } from '../shared/ipc-types';
+import type { ElectronAPI, RefreshProgress } from '../shared/ipc-types';
 import type { ForceUpdateState } from '../shared/types';
 
 const electronAPI: ElectronAPI = {
@@ -44,8 +44,8 @@ const electronAPI: ElectronAPI = {
     refresh: () => ipcRenderer.invoke('claims:refresh'),
     generate: (opts: { tripIds: number[] }) =>
       ipcRenderer.invoke('claims:generate', opts),
-    onProgress: (cb: (text: string) => void) => {
-      const handler = (_event: IpcRendererEvent, text: string) => cb(text);
+    onProgress: (cb: (progress: RefreshProgress) => void) => {
+      const handler = (_event: IpcRendererEvent, progress: RefreshProgress) => cb(progress);
       ipcRenderer.on('claims:progress', handler);
       return () => ipcRenderer.removeListener('claims:progress', handler);
     },
