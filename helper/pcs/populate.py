@@ -5,7 +5,7 @@ from datetime import date, timedelta
 
 from . import forms as f
 from . import geometry as g
-from .clock import REPETITIVE_LOOKBACK_DAYS, Clock
+from .clock import REPETITIVE_LOOKBACK_DAYS, Clock, parse_date
 from .mapping import PacketData, split_address_lines
 from .overlay import SIZE_FLOOR, Sheet, SheetBuilder, fit
 from .selector import DISPUTED_LABELS, PATH_REPETITIVE, Selection, tri
@@ -251,6 +251,11 @@ def _labelled(label: str, value: str) -> str:
     return f"{label}: {value}" if value else ""
 
 
+def _form_date(value: str) -> str:
+    parsed = parse_date(value)
+    return parsed.strftime("%m/%d/%Y") if parsed else value
+
+
 def build_solano_certification(
     data: PacketData,
     fields: dict[str, str] | None = None,
@@ -264,8 +269,8 @@ def build_solano_certification(
     dates = " | ".join(
         part
         for part in (
-            _labelled("DOB", values.get("patient_dob", "")),
-            _labelled("DATE OF SERVICE", values.get("service_date", "")),
+            _labelled("DOB", _form_date(values.get("patient_dob", ""))),
+            _labelled("DATE OF SERVICE", _form_date(values.get("service_date", ""))),
         )
         if part
     )
@@ -330,7 +335,7 @@ def build_norcal_certification(
 
     values = data.values
     builder.set("patient_name", values.get("patient_name", ""))
-    builder.set("patient_dob", values.get("patient_dob", ""))
+    builder.set("patient_dob", _form_date(values.get("patient_dob", "")))
     _set_stacked(builder, "pickup_facility_upper", "pickup_facility", fields.get("origin_form") or values.get("origin", ""))
     if service is not None:
         builder.set("requested_month", f"{service.month:02d}")

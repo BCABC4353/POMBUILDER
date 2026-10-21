@@ -28,9 +28,16 @@ from .mapping import (
     merged_constants,
     resolve_version,
 )
+from .county import FORM_SOLANO, county_form, uses_county_forms, zip5
 from .overlay import Sheet
-from .populate import FORCED_STAMP, build_certificate_of_mailing, build_certification
-from .selector import Selection, select_form
+from .populate import (
+    FORCED_STAMP,
+    build_certificate_of_mailing,
+    build_certification,
+    build_norcal_certification,
+    build_solano_certification,
+)
+from .selector import Selection, first_variant, select_form
 from .template import build_observations
 
 PATHS = {"Yes": PATH_REPETITIVE, "No": PATH_NONREPETITIVE, "Unknown": PATH_UNKNOWN}
@@ -71,6 +78,60 @@ def _stamp_pages(document: g.Document) -> g.Document:
                 )
             )
     return g.Document(name=document.name, title=document.title, pages=tuple(stamped))
+
+
+_FIELD_SENTINELS = frozenset({"<none>", "none", "null", "n/a"})
+
+
+def _first_field(fields: dict[str, str], *keys: str) -> str:
+    for key in keys:
+        value = first_variant(fields.get(key))
+        if value and value.strip().lower() not in _FIELD_SENTINELS:
+            return value.strip()
+    return ""
+
+
+def _street_place(fields: dict[str, str], prefix: str) -> str:
+    return ", ".join(
+        part for part in (_first_field(fields, f"{prefix}_address"), _first_field(fields, f"{prefix}_city")) if part
+    )
+
+
+def _clean_place(fields: dict[str, str], prefix: str) -> str:
+    state_zip = " ".join(part for part in (_first_field(fields, f"{prefix}_state"), _first_field(fields, f"{prefix}_zip")) if part)
+    locality = ", ".join(part for part in (_first_field(fields, f"{prefix}_city"), state_zip) if part)
+    address = ", ".join(
+        part
+        for part in (_first_field(fields, f"{prefix}_address"), _first_field(fields, f"{prefix}_address_line_2"), locality)
+        if part
+    )
+    room = " ".join(
+        f"{label} {value}"
+        for suffix, label in (("unit", "Unit"), ("floor", "Floor"), ("room", "Room"), ("bed", "Bed"))
+        if (value := _first_field(fields, f"{prefix}_{suffix}"))
+    )
+    return " - ".join(part for part in (_first_field(fields, f"{prefix}_facility_name"), address, room) if part)
+
+
+def clean_county_places(data: PacketData, fields: dict[str, str]) -> None:
+    for key, prefix in (("origin", "pickup"), ("destination", "destination")):
+        place = _clean_place(fields, prefix)
+        if place:
+            data.values[key] = place
+
+
+def county_certification(data: PacketData, fields: dict[str, str], generated_on: date | None) -> Sheet:
+    pickup = _first_field(fields, "pickup_zip")
+    chosen = county_form(pickup)
+    if not zip5(pickup):
+        data.notes.append("No pickup ZIP code was extracted; the Northern California form was used.")
+    form_fields = {
+        "origin_form": _first_field(fields, "pickup_facility_name") or _street_place(fields, "pickup"),
+        "destination_form": _first_field(fields, "destination_facility_name") or _street_place(fields, "destination"),
+    }
+    if chosen == FORM_SOLANO:
+        return build_solano_certification(data, form_fields, generated_on)
+    return build_norcal_certification(data, form_fields, generated_on, parse_date(data.values.get("service_date", "")))
 
 
 @dataclass(frozen=True)
@@ -195,8 +256,13 @@ def build_for_run(
             )
     if (selection.needed or force) and not (unidentified and not force):
         resolved_constants = constants or merged_constants(agency)
-        form = build_certification(data, selection, clock, resolved_constants, fields, generated_on)
-        letter = build_letter(data, selection, clock, resolved_constants, kind, generated_on)
+        county = uses_county_forms(agency)
+        if county:
+            clean_county_places(data, fields)
+            form = county_certification(data, fields, generated_on)
+        else:
+            form = build_certification(data, selection, clock, resolved_constants, fields, generated_on)
+        letter = build_letter(data, selection, clock, resolved_constants, kind, generated_on, county_form=county)
         if data.forced_incomplete:
             letter = _stamp_pages(letter)
         observations = build_observations(data, data.values.get("claim_ref", ""), generated_on)

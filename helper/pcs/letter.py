@@ -12,6 +12,19 @@ LEADING = 11.5
 PARAGRAPH_GAP = 8.0
 LETTER_TOP = 72.0
 
+COUNTY_FORM_SECTIONS = (
+    "The clinical and certification sections of the form are blank, and they are blank on purpose. We have filled in "
+    "the facts we already hold - who the patient is, and where and when we transported. The certification itself is "
+    "yours to write. Please do not sign a statement you cannot support from your own knowledge of this patient, "
+    "and please do not treat anything we have printed as the certification."
+)
+
+SIGNATURE_GAP = 34.0
+SIGNATURE_TOP_PAD = 5.0
+SIGNATURE_BOTTOM_PAD = 9.5
+SIGNATURE_X = g.MARGIN_X - 2.0
+SIGNATURE_WIDTH = 124.0
+
 LETTERHEAD_FILENAME = "medic_letterhead.png"
 LETTERHEAD_TOP = 118.0
 LETTERHEAD_BOTTOM = 730.0
@@ -74,6 +87,7 @@ def build_letter(
     kind: str,
     generated_on: date | None = None,
     source: str = "epcr",
+    county_form: bool = False,
 ) -> g.Document:
     stamp = generated_on or date.today()
     rescuenet = source == "rescuenet"
@@ -120,20 +134,16 @@ def build_letter(
         "means of transportation were contraindicated, and 42 CFR 410.40(e) requires us to obtain a certification "
         "statement saying so. The enclosed form is that certification."
     )
-    if rescuenet:
-        cursor.paragraph(
-            "The clinical and certification sections of the form are blank, and they are blank on purpose. We have filled in the facts we "
-            "already hold - who the patient is, and where and when we transported. The certification itself is yours to write. "
-            "Please do not sign a statement you cannot support from your own knowledge of this patient, "
-            "and please do not treat anything we have printed as the certification."
-        )
-    else:
+    if rescuenet or county_form:
+        cursor.paragraph(COUNTY_FORM_SECTIONS)
+    if not rescuenet and not county_form:
         cursor.paragraph(
             "Section 5 of the form is blank, and it is blank on purpose. We have filled in the facts we already hold - who "
             "the patient is, where and when we transported, what level of service we billed. The certification itself is "
             "yours to write. Please do not sign a statement you cannot support from your own knowledge of this patient, "
             "and please do not treat anything we have printed as the certification."
         )
+    if not rescuenet:
         cursor.paragraph(
             "The form also carries a boxed block of observations transcribed from our crew's patient care report. It is "
             "printed so that you are not writing against a blank page. It is not a certification, we have not adopted it, "
@@ -142,11 +152,11 @@ def build_letter(
         )
 
     if kind == "NPCS":
+        attestation = "" if county_form else " The form carries that attestation above the signature line."
         cursor.paragraph(
             "This is a non-physician certification statement. You may sign it only if you are an employee of the "
             "patient's attending physician or of the facility where the patient received treatment, and only where a "
-            "signature could not be obtained from the attending physician. The form carries that attestation above "
-            "the signature line."
+            f"signature could not be obtained from the attending physician.{attestation}"
         )
 
     if rescuenet:
@@ -198,8 +208,17 @@ def build_letter(
     )
 
     cursor.space(10.0)
+    signature = constants.get("billing_signature", "") if rescuenet else ""
+    if signature:
+        cursor.break_if_needed(LEADING + SIGNATURE_GAP + 3 * LEADING)
     cursor.line("Sincerely,")
-    cursor.space(26.0)
+    if signature:
+        top = cursor.y - LEADING + SIGNATURE_TOP_PAD
+        bottom = cursor.y + SIGNATURE_GAP - SIGNATURE_BOTTOM_PAD
+        cursor.ops.append(g.Picture(SIGNATURE_X, top, SIGNATURE_X + SIGNATURE_WIDTH, bottom, signature))
+        cursor.space(SIGNATURE_GAP)
+    else:
+        cursor.space(26.0)
     contact = constants.get("billing_contact", "")
     if contact:
         cursor.line(contact)

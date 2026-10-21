@@ -167,7 +167,16 @@ class Field:
         return chars_across(self.width - VALUE_INSET, self.size)
 
 
-Op = Text | Rule | Frame | Field
+@dataclass(frozen=True)
+class Picture:
+    x0: float
+    y0: float
+    x1: float
+    y1: float
+    filename: str
+
+
+Op = Text | Rule | Frame | Field | Picture
 
 
 @dataclass(frozen=True)
@@ -192,7 +201,7 @@ def op_bottom(op: Op) -> float:
         return op.baseline
     if isinstance(op, Rule):
         return op.y
-    if isinstance(op, Frame):
+    if isinstance(op, (Frame, Picture)):
         return op.y1
     return op.baseline + UNDERLINE_DROP
 
@@ -219,7 +228,7 @@ def op_right(op: Op) -> float:
         return op.x + text_width(op.text, op.font, op.size)
     if isinstance(op, Rule):
         return op.x1
-    if isinstance(op, Frame):
+    if isinstance(op, (Frame, Picture)):
         return op.x1
     return op.x + op.width
 

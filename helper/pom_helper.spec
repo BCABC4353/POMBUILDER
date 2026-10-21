@@ -13,6 +13,7 @@ a = Analysis(
         "pcs.rescuenet",
         "pcs.mapping",
         "pcs.clock",
+        "pcs.county",
         "pcs.letter",
         "pcs.emit",
         "pcs.geometry",

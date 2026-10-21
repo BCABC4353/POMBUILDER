@@ -164,6 +164,11 @@ def build_doc(document: g.Document):
                     page.draw_line(fitz.Point(op.x0, op.y), fitz.Point(op.x1, op.y), width=op.width)
                 elif isinstance(op, g.Frame):
                     page.draw_rect(fitz.Rect(op.x0, op.y0, op.x1, op.y1), width=op.width)
+                elif isinstance(op, g.Picture):
+                    picture = overlay.FORMS_DIR / op.filename
+                    if not picture.exists():
+                        raise FileNotFoundError(f"image missing: {picture}")
+                    page.insert_image(fitz.Rect(op.x0, op.y0, op.x1, op.y1), filename=str(picture), keep_proportion=True)
                 elif isinstance(op, g.Field):
                     page.insert_text(
                         fitz.Point(op.x, op.baseline - g.LABEL_RISE),

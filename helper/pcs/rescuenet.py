@@ -9,6 +9,7 @@ from pathlib import Path
 from . import emit
 from . import geometry as g
 from .clock import PATH_NONREPETITIVE, PATH_REPETITIVE, build_clock, parse_date
+from .county import FORM_SOLANO, county_form, zip5
 from .letter import build_letter
 from .mapping import PacketData
 from .populate import (
@@ -122,26 +123,15 @@ _G_CANCELLED = Gate(
 _NONE_SENTINELS: frozenset[str] = frozenset({"<none>", "none"})
 
 BILLING_CONTACT = "Sandy Whaley, VP of Communications and Finance"
+BILLING_SIGNATURE = "sandy_whaley_signature.png"
 FIRM_SHEET_DRAW_ROTATE = -90
 
-FORM_SOLANO = "SOLANO"
-FORM_NORCAL = "NORCAL"
-
-SOLANO_ZIPS: frozenset[str] = frozenset({
-    "94510", "94512", "94533", "94534", "94535", "94571", "94585", "94589",
-    "94590", "94591", "94592", "95620", "95625", "95687", "95688", "95696",
-})
-
-_ZIP5 = re.compile(r"\d{5}")
-
-
 def pickup_zip(row: dict) -> str:
-    hit = _ZIP5.match(_code(row, "PickupZip"))
-    return hit.group(0) if hit else ""
+    return zip5(_code(row, "PickupZip"))
 
 
 def pcs_form(row: dict) -> str:
-    return FORM_SOLANO if pickup_zip(row) in SOLANO_ZIPS else FORM_NORCAL
+    return county_form(pickup_zip(row))
 
 
 def _s(row: dict, key: str) -> str:
@@ -251,6 +241,7 @@ def constants_for(row: dict) -> dict[str, str]:
         "supplier_fax": _s(row, "CompanyFax"),
         "supplier_npi": _s(row, "CompanyNPI"),
         "billing_contact": BILLING_CONTACT,
+        "billing_signature": BILLING_SIGNATURE,
         "return_instructions": "",
     }
 
